@@ -193,31 +193,31 @@ public class GroupmanTcgPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGroupCollectionSnapshot(GroupCollectionSnapshotMessage message)
+	public void onGroupCollectionSnapshotMessage(GroupCollectionSnapshotMessage message)
 	{
 		collection.snapshotReceived(message);
 	}
 
 	@Subscribe
-	public void onGroupPackReveal(GroupPackRevealMessage message)
+	public void onGroupPackRevealMessage(GroupPackRevealMessage message)
 	{
 		packReveals.messageReceived(message);
 	}
 
 	@Subscribe
-	public void onTopTrumpsChallenge(TopTrumpsChallengeMessage message)
+	public void onTopTrumpsChallengeMessage(TopTrumpsChallengeMessage message)
 	{
 		topTrumps.challengeReceived(message);
 	}
 
 	@Subscribe
-	public void onTopTrumpsResponse(TopTrumpsResponseMessage message)
+	public void onTopTrumpsResponseMessage(TopTrumpsResponseMessage message)
 	{
 		topTrumps.responseReceived(message);
 	}
 
 	@Subscribe
-	public void onTopTrumpsResult(TopTrumpsResultMessage message)
+	public void onTopTrumpsResultMessage(TopTrumpsResultMessage message)
 	{
 		topTrumps.resultReceived(message);
 	}
