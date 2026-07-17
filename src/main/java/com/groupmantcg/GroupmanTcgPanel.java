@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.swing.BorderFactory;
@@ -11,6 +12,8 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JComboBox;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import net.runelite.client.ui.ColorScheme;
@@ -24,8 +27,10 @@ class GroupmanTcgPanel extends PluginPanel
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
 	private final IconTextField search = new IconTextField();
+	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
 	private final JPanel results = body();
+	private boolean updatingSelector;
 
 	GroupmanTcgPanel(SharedCollectionService collection, MonsterCardCatalog monsters, ItemCardCatalog items)
 	{
@@ -58,10 +63,21 @@ class GroupmanTcgPanel extends PluginPanel
 				refreshSearch();
 			}
 		});
+		collectionSelector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+		collectionSelector.setPreferredSize(new Dimension(PANEL_WIDTH - 20, 28));
+		collectionSelector.addActionListener(event ->
+		{
+			if (!updatingSelector)
+			{
+				refreshSearch();
+			}
+		});
 
 		add(search);
 		add(Box.createVerticalStrut(6));
-		add(header("Collection"));
+		add(header("Browse collection"));
+		add(collectionSelector);
+		add(header("Group status"));
 		add(syncStatus);
 		add(header("Card lookup"));
 		add(results);
@@ -91,7 +107,40 @@ class GroupmanTcgPanel extends PluginPanel
 				? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.BRAND_ORANGE);
 		}
 		syncStatus.setToolTipText(status.getDetail());
+		refreshCollectionChoices();
 		refreshSearch();
+	}
+
+	private void refreshCollectionChoices()
+	{
+		CollectionChoice selected = (CollectionChoice) collectionSelector.getSelectedItem();
+		String selectedKey = selected == null ? "" : selected.key;
+		DefaultComboBoxModel<CollectionChoice> model = new DefaultComboBoxModel<>();
+		model.addElement(new CollectionChoice("", "Shared collection", collection.cards()));
+		for (Map.Entry<String, Set<String>> member : collection.memberCollections().entrySet())
+		{
+			model.addElement(new CollectionChoice(EntityCardCatalog.normalize(member.getKey()),
+				member.getKey(), member.getValue()));
+		}
+
+		updatingSelector = true;
+		try
+		{
+			collectionSelector.setModel(model);
+			for (int i = 0; i < model.getSize(); i++)
+			{
+				if (model.getElementAt(i).key.equals(selectedKey))
+				{
+					collectionSelector.setSelectedIndex(i);
+					return;
+				}
+			}
+			collectionSelector.setSelectedIndex(0);
+		}
+		finally
+		{
+			updatingSelector = false;
+		}
 	}
 
 	private void refreshSearch()
@@ -100,11 +149,13 @@ class GroupmanTcgPanel extends PluginPanel
 		String query = EntityCardCatalog.normalize(search.getText());
 		if (query.isEmpty())
 		{
-			results.add(muted("Search for an NPC or item"));
+			results.add(muted("Search cards; hover owners for pull details."));
 		}
 		else
 		{
-			Set<String> owned = collection.cards();
+			CollectionChoice choice = (CollectionChoice) collectionSelector.getSelectedItem();
+			boolean shared = choice == null || choice.key.isEmpty();
+			Set<String> owned = choice == null ? collection.cards() : choice.cards;
 			Map<String, Set<String>> matches = new TreeMap<>();
 			collectMatches(matches, "NPC: ", monsters.entries(), query);
 			collectMatches(matches, "Item: ", items.entries(), query);
@@ -117,7 +168,7 @@ class GroupmanTcgPanel extends PluginPanel
 					break;
 				}
 				boolean unlocked = ownsAny(owned, match.getValue());
-				results.add(resultRow(match.getKey(), unlocked, match.getValue()));
+				results.add(resultRow(match.getKey(), unlocked, match.getValue(), shared));
 			}
 			if (matches.isEmpty())
 			{
@@ -140,7 +191,7 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 	}
 
-	private static JPanel resultRow(String name, boolean unlocked, Set<String> cards)
+	private JPanel resultRow(String name, boolean unlocked, Set<String> cards, boolean shared)
 	{
 		JPanel row = new JPanel(new BorderLayout());
 		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -148,9 +199,36 @@ class GroupmanTcgPanel extends PluginPanel
 		JLabel nameLabel = new JLabel(name);
 		nameLabel.setForeground(Color.WHITE);
 		row.add(nameLabel, BorderLayout.CENTER);
-		JLabel state = new JLabel(unlocked ? "Unlocked" : "Locked");
+		List<String> owners = shared && unlocked ? collection.ownersOf(cards) : java.util.Collections.emptyList();
+		String stateText;
+		if (!unlocked)
+		{
+			stateText = shared ? "Locked" : "Missing";
+		}
+		else if (!shared)
+		{
+			stateText = "Owned";
+		}
+		else if (owners.size() == 1)
+		{
+			stateText = owners.get(0);
+		}
+		else if (owners.size() > 1)
+		{
+			stateText = owners.size() + " members";
+		}
+		else
+		{
+			stateText = "Unlocked";
+		}
+		JLabel state = new JLabel(stateText);
 		state.setForeground(unlocked ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
-		state.setToolTipText(String.join(" / ", cards));
+		String tooltip = String.join(" / ", cards);
+		if (!owners.isEmpty())
+		{
+			tooltip += " · " + String.join(" · ", collection.ownershipDetails(cards));
+		}
+		state.setToolTipText(tooltip);
 		row.add(state, BorderLayout.EAST);
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
 		return row;
@@ -196,5 +274,24 @@ class GroupmanTcgPanel extends PluginPanel
 	{
 		return value.isEmpty() ? value : Character.toUpperCase(value.charAt(0)) + value.substring(1);
 	}
-}
 
+	private static final class CollectionChoice
+	{
+		private final String key;
+		private final String displayName;
+		private final Set<String> cards;
+
+		private CollectionChoice(String key, String displayName, Set<String> cards)
+		{
+			this.key = key;
+			this.displayName = displayName;
+			this.cards = cards;
+		}
+
+		@Override
+		public String toString()
+		{
+			return displayName + " (" + cards.size() + ")";
+		}
+	}
+}

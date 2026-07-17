@@ -38,6 +38,10 @@ in-game GIM roster.
 - Solo or official Group Ironman collection modes.
 - Grow-only, profile-scoped group unlock cache.
 - Compact RuneLite Party snapshots with catalog compatibility checks.
+- Sidebar collection browser with a shared view and one cached collection per
+  verified group member. Shared search results identify the current owner;
+  hovering the owner shows locally available copy, foil, original-puller, and
+  pull-date details.
 - Verified group pack reveals: a few seconds after a teammate opens a pack,
   show all five pulled cards in a small top-centre window, including duplicate,
   `NEW`, and `FOIL` status. Multiple reveals queue rather than overwrite one
@@ -52,9 +56,11 @@ in-game GIM roster.
 Items and NPCs with no OSRS TCG card are never restricted. Enforcement is
 client-side and therefore remains an honour-system challenge.
 
-The multiplayer transport has no external server. At least two members must be
-online together in the same RuneLite Party for new unlocks to cross between
-their local caches; a member carrying the combined cache can relay it later.
+The current plugin build uses RuneLite Party as its live transport. At least two
+members must be online together in the same RuneLite Party for new unlocks and
+individual member collections to cross between their local caches; those
+collections remain visible offline after they have synchronised once, and a
+member carrying the combined cache can relay the shared unlocks later.
 Pack-opening popups are also live-only and are accepted only from RuneLite
 Party members on the official in-game GIM roster. Sharing and receiving pack
 reveals can be disabled independently, and the popup duration is configurable.
@@ -63,6 +69,12 @@ member, and require explicit acceptance before cards are drawn.
 Card artwork is loaded on demand from the OSRS Wiki URLs in OSRS TCG's public
 card catalog and cached under RuneLite's `Groupman-TCG/card-art-v1` directory;
 the names and card frames still display if artwork is unavailable.
+
+OSRS TCG records a card instance ID, card name, foil state, original puller and
+pull time. It does not retain the exact booster type or RuneScape activity that
+awarded the pack, and a traded card retains its original pull metadata. The
+companion server schema preserves those fields and labels debug-granted cards,
+but must not claim that it can distinguish a direct pull from a later trade.
 
 Production restrictions consume RuneLite menu clicks. Keyboard shortcuts that
 confirm a make-X interface without producing a menu click remain honour-system.

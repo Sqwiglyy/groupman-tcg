@@ -12,5 +12,6 @@ public class GroupCollectionSnapshotMessage extends PartyMemberMessage
 	private String groupKey;
 	private String catalogFingerprint;
 	private String unlockBits;
+	/** Sender's current personal collection; unlockBits remains the grow-only group union. */
+	private String memberUnlockBits;
 }
-

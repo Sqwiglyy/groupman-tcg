@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a shared/personal collection selector with one collection per verified
+  group member.
+- Cache individual member ownership offline and identify owners in shared card
+  search results.
+- Show local copy, foil, original-puller, and pull-date provenance on card
+  results while preserving the permanent shared unlock union.
 - Add consent-based Top Trumps challenges from the player right-click menu.
 - Draw two distinct cards from the shared group collection and compare them
   with the OSRS TCG power formula.

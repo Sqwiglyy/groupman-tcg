@@ -1,8 +1,17 @@
 package com.groupmantcg;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +32,12 @@ import net.runelite.client.party.WSClient;
 @Singleton
 class SharedCollectionService
 {
-	private static final int PROTOCOL = 1;
+	private static final int PROTOCOL = 2;
 	private static final String CACHE_KEY = "sharedCollectionV1";
 	private static final int REFRESH_TICKS = 5;
 	private static final int REANNOUNCE_TICKS = 100;
+	private static final DateTimeFormatter PULL_DATE = DateTimeFormatter.ofPattern("d MMM uuuu")
+		.withZone(ZoneId.systemDefault());
 
 	private final Client client;
 	private final ClientThread clientThread;
@@ -39,6 +50,7 @@ class SharedCollectionService
 	private final WSClient wsClient;
 
 	private volatile Set<String> sharedCards = Collections.emptySet();
+	private volatile Map<String, MemberCollection> memberCollections = Collections.emptyMap();
 	private volatile GroupSyncStatus status = soloStatus(0);
 	private Set<String> roster = Collections.emptySet();
 	private final Set<String> syncedMembers = new HashSet<>();
@@ -87,6 +99,87 @@ class SharedCollectionService
 	GroupSyncStatus status()
 	{
 		return status;
+	}
+
+	Map<String, Set<String>> memberCollections()
+	{
+		List<MemberCollection> sorted = new ArrayList<>(memberCollections.values());
+		sorted.sort(Comparator.comparing(member -> member.displayName, String.CASE_INSENSITIVE_ORDER));
+		Map<String, Set<String>> result = new LinkedHashMap<>();
+		for (MemberCollection member : sorted)
+		{
+			result.put(member.displayName, member.cards);
+		}
+		return Collections.unmodifiableMap(result);
+	}
+
+	List<String> ownersOf(Set<String> cardNames)
+	{
+		List<String> owners = new ArrayList<>();
+		for (MemberCollection member : memberCollections.values())
+		{
+			for (String cardName : cardNames)
+			{
+				if (member.cards.contains(cardName))
+				{
+					owners.add(member.displayName);
+					break;
+				}
+			}
+		}
+		owners.sort(String.CASE_INSENSITIVE_ORDER);
+		return owners;
+	}
+
+	List<String> ownershipDetails(Set<String> cardNames)
+	{
+		List<String> details = new ArrayList<>();
+		PartyMember localMember = partyService.getLocalMember();
+		String localName = localMember == null || localMember.getDisplayName() == null
+			? null : EntityCardCatalog.normalize(localMember.getDisplayName());
+		for (String owner : ownersOf(cardNames))
+		{
+			if (localName == null || !localName.equals(EntityCardCatalog.normalize(owner)))
+			{
+				details.add(owner);
+				continue;
+			}
+			LocalCollection.CardSummary summary = null;
+			for (String cardName : cardNames)
+			{
+				LocalCollection.CardSummary candidate = localCollection.summary(cardName);
+				if (candidate != null && (summary == null || candidate.copies() > summary.copies()))
+				{
+					summary = candidate;
+				}
+			}
+			if (summary == null)
+			{
+				details.add(owner);
+				continue;
+			}
+			StringBuilder detail = new StringBuilder(owner).append(": ").append(summary.copies())
+				.append(summary.copies() == 1 ? " copy" : " copies");
+			if (summary.foilCopies() > 0)
+			{
+				detail.append(", ").append(summary.foilCopies()).append(" foil");
+			}
+			if (summary.debugCopies() > 0)
+			{
+				detail.append(", ").append(summary.debugCopies()).append(" debug grant")
+					.append(summary.debugCopies() == 1 ? "" : "s");
+			}
+			if (!summary.pulledBy().isEmpty())
+			{
+				detail.append(", pulled by ").append(String.join(" / ", summary.pulledBy()));
+			}
+			if (summary.firstPulledAt() > 0L)
+			{
+				detail.append(" on ").append(PULL_DATE.format(Instant.ofEpochMilli(summary.firstPulledAt())));
+			}
+			details.add(detail.toString());
+		}
+		return details;
 	}
 
 	String activeGroupKey()
@@ -205,7 +298,9 @@ class SharedCollectionService
 		{
 			groupKey = discoveredKey;
 			groupName = settings.getName().trim();
-			sharedCards = loadCache();
+			LoadedCache loaded = loadCache();
+			sharedCards = loaded.sharedCards;
+			memberCollections = loaded.memberCollections;
 			syncedMembers.clear();
 			lastSentBits = null;
 			lastPartyId = -1L;
@@ -221,14 +316,17 @@ class SharedCollectionService
 		}
 		roster = Collections.unmodifiableSet(discoveredRoster);
 		syncedMembers.retainAll(roster);
+		retainRosterMembers();
 
 		PartyMember localPartyMember = partyService.getLocalMember();
+		boolean localMemberChanged = false;
 		if (localPartyMember != null && localPartyMember.getDisplayName() != null)
 		{
 			String localName = EntityCardCatalog.normalize(localPartyMember.getDisplayName());
 			if (roster.contains(localName))
 			{
 				syncedMembers.add(localName);
+				localMemberChanged = setMemberCollection(localPartyMember.getDisplayName(), local);
 			}
 		}
 
@@ -237,16 +335,20 @@ class SharedCollectionService
 		if (grew)
 		{
 			setSharedCards(combined);
+		}
+		if (grew || localMemberChanged)
+		{
 			persist();
 		}
 		updateActiveStatus();
-		send(forceSend || grew);
+		send(forceSend || grew || localMemberChanged);
 	}
 
 	private void merge(GroupCollectionSnapshotMessage message)
 	{
 		if (!started || !status.isActive() || !partyService.isInParty() || message == null
-			|| message.getProtocol() != PROTOCOL || !groupKey.equals(message.getGroupKey())
+			|| message.getProtocol() < 1 || message.getProtocol() > PROTOCOL
+			|| !groupKey.equals(message.getGroupKey())
 			|| !index.fingerprint().equals(message.getCatalogFingerprint()))
 		{
 			return;
@@ -275,14 +377,34 @@ class SharedCollectionService
 			return;
 		}
 
+		boolean memberChanged = false;
+		if (message.getProtocol() >= 2 && message.getMemberUnlockBits() != null)
+		{
+			try
+			{
+				memberChanged = setMemberCollection(sender.getDisplayName(), index.decode(message.getMemberUnlockBits()));
+			}
+			catch (IllegalArgumentException ex)
+			{
+				log.debug("Rejected malformed member collection snapshot", ex);
+				return;
+			}
+		}
 		syncedMembers.add(senderName);
 		Set<String> combined = new HashSet<>(sharedCards);
 		int previous = combined.size();
-		if (combined.addAll(incoming))
+		boolean grew = combined.addAll(incoming);
+		if (grew)
 		{
 			setSharedCards(combined);
+		}
+		if (grew || memberChanged)
+		{
 			persist();
-			updateActiveStatus();
+		}
+		updateActiveStatus();
+		if (grew)
+		{
 			send(true);
 			if (config.syncMessages())
 			{
@@ -291,13 +413,9 @@ class SharedCollectionService
 					"[Groupman TCG] The group gained " + added + " unlock" + (added == 1 ? "" : "s") + ".", null);
 			}
 		}
-		else
-		{
-			updateActiveStatus();
-		}
 	}
 
-	private Set<String> loadCache()
+	private LoadedCache loadCache()
 	{
 		try
 		{
@@ -306,22 +424,41 @@ class SharedCollectionService
 			if (cache == null || !groupKey.equals(cache.groupKey)
 				|| !index.fingerprint().equals(cache.catalogFingerprint))
 			{
-				return Collections.emptySet();
+				return LoadedCache.empty();
 			}
-			return index.decode(cache.unlockBits);
+			Map<String, MemberCollection> members = new HashMap<>();
+			for (Map.Entry<String, String> entry : cache.memberUnlockBits.entrySet())
+			{
+				if (entry.getKey() == null || entry.getValue() == null)
+				{
+					continue;
+				}
+				String displayName = entry.getKey().trim();
+				if (!displayName.isEmpty())
+				{
+					members.put(EntityCardCatalog.normalize(displayName),
+						new MemberCollection(displayName, index.decode(entry.getValue())));
+				}
+			}
+			return new LoadedCache(index.decode(cache.unlockBits), members);
 		}
 		catch (Exception ex)
 		{
 			log.debug("Unable to load shared collection cache", ex);
-			return Collections.emptySet();
+			return LoadedCache.empty();
 		}
 	}
 
 	private void persist()
 	{
 		String bits = index.encode(sharedCards);
+		Map<String, String> memberBits = new LinkedHashMap<>();
+		for (MemberCollection member : memberCollections.values())
+		{
+			memberBits.put(member.displayName, index.encode(member.cards));
+		}
 		configManager.setRSProfileConfiguration(GroupmanTcgConfig.GROUP, CACHE_KEY,
-			cacheCodec.encode(groupKey, index.fingerprint(), bits));
+			cacheCodec.encode(groupKey, index.fingerprint(), bits, memberBits));
 	}
 
 	private void send(boolean force)
@@ -341,6 +478,7 @@ class SharedCollectionService
 		message.setGroupKey(groupKey);
 		message.setCatalogFingerprint(index.fingerprint());
 		message.setUnlockBits(bits);
+		message.setMemberUnlockBits(index.encode(localCollection.getCards()));
 		partyService.send(message);
 		lastSentBits = bits;
 		lastPartyId = partyId;
@@ -358,9 +496,42 @@ class SharedCollectionService
 		sharedCards = Collections.unmodifiableSet(new HashSet<>(cards));
 	}
 
+	private boolean setMemberCollection(String displayName, Set<String> cards)
+	{
+		if (displayName == null || displayName.trim().isEmpty())
+		{
+			return false;
+		}
+		String shownName = displayName.trim();
+		String key = EntityCardCatalog.normalize(shownName);
+		MemberCollection current = memberCollections.get(key);
+		if (current != null && current.displayName.equals(shownName) && current.cards.equals(cards))
+		{
+			return false;
+		}
+		Map<String, MemberCollection> updated = new HashMap<>(memberCollections);
+		updated.put(key, new MemberCollection(shownName, cards));
+		memberCollections = Collections.unmodifiableMap(updated);
+		return true;
+	}
+
+	private void retainRosterMembers()
+	{
+		Map<String, MemberCollection> retained = new HashMap<>();
+		for (Map.Entry<String, MemberCollection> entry : memberCollections.entrySet())
+		{
+			if (roster.contains(entry.getKey()))
+			{
+				retained.put(entry.getKey(), entry.getValue());
+			}
+		}
+		memberCollections = Collections.unmodifiableMap(retained);
+	}
+
 	private void reset()
 	{
 		sharedCards = Collections.emptySet();
+		memberCollections = Collections.emptyMap();
 		roster = Collections.emptySet();
 		syncedMembers.clear();
 		groupKey = null;
@@ -377,5 +548,34 @@ class SharedCollectionService
 	private static GroupSyncStatus soloStatus(int cards)
 	{
 		return new GroupSyncStatus(false, false, false, "", cards, 0, 0, "Solo OSRS TCG collection");
+	}
+
+	private static final class MemberCollection
+	{
+		private final String displayName;
+		private final Set<String> cards;
+
+		private MemberCollection(String displayName, Set<String> cards)
+		{
+			this.displayName = displayName;
+			this.cards = Collections.unmodifiableSet(new HashSet<>(cards));
+		}
+	}
+
+	private static final class LoadedCache
+	{
+		private final Set<String> sharedCards;
+		private final Map<String, MemberCollection> memberCollections;
+
+		private LoadedCache(Set<String> sharedCards, Map<String, MemberCollection> memberCollections)
+		{
+			this.sharedCards = Collections.unmodifiableSet(new HashSet<>(sharedCards));
+			this.memberCollections = Collections.unmodifiableMap(new HashMap<>(memberCollections));
+		}
+
+		private static LoadedCache empty()
+		{
+			return new LoadedCache(Collections.emptySet(), Collections.emptyMap());
+		}
 	}
 }

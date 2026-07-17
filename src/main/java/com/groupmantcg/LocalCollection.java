@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import javax.inject.Inject;
@@ -52,6 +53,49 @@ class LocalCollection
 	{
 		getCards();
 		return snapshot;
+	}
+
+	synchronized CardSummary summary(String normalizedCardName)
+	{
+		Snapshot current = snapshot();
+		int normalCopies = 0;
+		int foilCopies = 0;
+		int debugCopies = 0;
+		long firstPulledAt = 0L;
+		long lastPulledAt = 0L;
+		Set<String> pulledBy = new LinkedHashSet<>();
+		for (CardInstance instance : current.instances())
+		{
+			if (!instance.normalizedName().equals(normalizedCardName))
+			{
+				continue;
+			}
+			if (instance.foil())
+			{
+				foilCopies++;
+			}
+			else
+			{
+				normalCopies++;
+			}
+			if (!instance.pulledBy().isEmpty())
+			{
+				if (isDebugPull(instance.pulledBy()))
+				{
+					debugCopies++;
+				}
+				pulledBy.add(formatPulledBy(instance.pulledBy()));
+			}
+			if (instance.pulledAt() > 0L)
+			{
+				firstPulledAt = firstPulledAt == 0L
+					? instance.pulledAt() : Math.min(firstPulledAt, instance.pulledAt());
+				lastPulledAt = Math.max(lastPulledAt, instance.pulledAt());
+			}
+		}
+		int copies = normalCopies + foilCopies;
+		return copies == 0 ? null : new CardSummary(normalCopies, foilCopies, debugCopies, firstPulledAt,
+			lastPulledAt, pulledBy);
 	}
 
 	synchronized void invalidate()
@@ -105,6 +149,17 @@ class LocalCollection
 		cards = Collections.emptySet();
 		snapshot = Snapshot.empty();
 		available = false;
+	}
+
+	private static String formatPulledBy(String pulledBy)
+	{
+		String clean = pulledBy.trim();
+		return isDebugPull(clean) ? "Debug_" + clean.substring("DEBUG_".length()) : clean;
+	}
+
+	private static boolean isDebugPull(String pulledBy)
+	{
+		return pulledBy.regionMatches(true, 0, "DEBUG_", 0, "DEBUG_".length());
 	}
 
 	static final class Snapshot
@@ -167,5 +222,34 @@ class LocalCollection
 		boolean foil() { return foil; }
 		String pulledBy() { return pulledBy; }
 		long pulledAt() { return pulledAt; }
+	}
+
+	static final class CardSummary
+	{
+		private final int normalCopies;
+		private final int foilCopies;
+		private final int debugCopies;
+		private final long firstPulledAt;
+		private final long lastPulledAt;
+		private final Set<String> pulledBy;
+
+		private CardSummary(int normalCopies, int foilCopies, int debugCopies, long firstPulledAt,
+			long lastPulledAt, Set<String> pulledBy)
+		{
+			this.normalCopies = normalCopies;
+			this.foilCopies = foilCopies;
+			this.debugCopies = debugCopies;
+			this.firstPulledAt = firstPulledAt;
+			this.lastPulledAt = lastPulledAt;
+			this.pulledBy = Collections.unmodifiableSet(new LinkedHashSet<>(pulledBy));
+		}
+
+		int normalCopies() { return normalCopies; }
+		int foilCopies() { return foilCopies; }
+		int debugCopies() { return debugCopies; }
+		int copies() { return normalCopies + foilCopies; }
+		long firstPulledAt() { return firstPulledAt; }
+		long lastPulledAt() { return lastPulledAt; }
+		Set<String> pulledBy() { return pulledBy; }
 	}
 }

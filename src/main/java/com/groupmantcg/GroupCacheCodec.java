@@ -1,6 +1,9 @@
 package com.groupmantcg;
 
 import com.google.gson.Gson;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -15,13 +18,15 @@ class GroupCacheCodec
 		this.gson = gson;
 	}
 
-	String encode(String groupKey, String fingerprint, String bits)
+	String encode(String groupKey, String fingerprint, String bits, Map<String, String> memberBits)
 	{
 		Cache cache = new Cache();
-		cache.schema = 1;
+		cache.schema = 2;
 		cache.groupKey = groupKey;
 		cache.catalogFingerprint = fingerprint;
 		cache.unlockBits = bits;
+		cache.memberUnlockBits = memberBits == null
+			? Collections.emptyMap() : new HashMap<>(memberBits);
 		return gson.toJson(cache);
 	}
 
@@ -32,7 +37,15 @@ class GroupCacheCodec
 			return null;
 		}
 		Cache cache = gson.fromJson(json, Cache.class);
-		return cache != null && cache.schema == 1 ? cache : null;
+		if (cache == null || (cache.schema != 1 && cache.schema != 2))
+		{
+			return null;
+		}
+		if (cache.memberUnlockBits == null)
+		{
+			cache.memberUnlockBits = Collections.emptyMap();
+		}
+		return cache;
 	}
 
 	static class Cache
@@ -41,6 +54,6 @@ class GroupCacheCodec
 		String groupKey;
 		String catalogFingerprint;
 		String unlockBits;
+		Map<String, String> memberUnlockBits;
 	}
 }
-
