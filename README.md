@@ -2,6 +2,7 @@
 
 [![Build](https://github.com/Sqwiglyy/groupman-tcg/actions/workflows/build.yml/badge.svg)](https://github.com/Sqwiglyy/groupman-tcg/actions/workflows/build.yml)
 [![License: BSD 2-Clause](https://img.shields.io/badge/license-BSD%202--Clause-blue.svg)](LICENSE)
+[![Fork on GitHub](https://img.shields.io/badge/fork-on%20GitHub-2ea44f.svg)](https://github.com/Sqwiglyy/groupman-tcg/fork)
 
 Turn your [OSRS TCG](https://runelite.net/plugin-hub/show/osrs-tcg) pulls into a
 Bronzeman-style RuneLite challenge. Cards unlock the NPCs, items, gathering
@@ -11,9 +12,37 @@ You can play alone or share permanent unlocks with friends. Group TCG works on
 any RuneScape account; it does not require a Group Ironman team, clan, or
 RuneLite Party.
 
-> Group TCG is currently a release candidate. The code and automated tests are
-> ready for review, but the final two-account play-through and RuneLite Plugin
-> Hub approval are still pending.
+> Group TCG is a release candidate ready for RuneLite Plugin Hub submission.
+> Automated checks and the full two-account launch checklist have passed.
+
+## Install or run your own fork
+
+When Group TCG is listed on the RuneLite Plugin Hub, install it from RuneLite's
+**Plugin Hub** panel and enable **OSRS TCG** alongside it.
+
+To try the current release from your own fork:
+
+1. Click **Fork on GitHub** above, then clone your copy:
+
+   ```text
+   git clone https://github.com/YOUR-GITHUB-NAME/groupman-tcg.git
+   cd groupman-tcg
+   ```
+
+2. Install Eclipse Temurin Java 11 and set `JAVA_HOME` to that JDK.
+3. Open the cloned folder and launch the RuneLite development client:
+
+   ```powershell
+   .\gradlew.bat run
+   ```
+
+   On macOS or Linux, use `./gradlew run` instead.
+
+4. Install or enable **OSRS TCG** in that development client, then enable
+   **Group TCG**.
+
+No Cloudflare account is needed for solo play. Multiplayer setup is optional
+and lives in the separate server repository linked below.
 
 ## What it does
 
@@ -131,11 +160,11 @@ The Cloudflare backend lives in the separate
 [groupman-tcg-server](https://github.com/Sqwiglyy/groupman-tcg-server)
 repository and is not part of the RuneLite plugin artifact.
 
-For reviewers and contributors:
+Project references:
 
 - [Changelog](CHANGELOG.md)
-- [Plugin Hub checklist](PLUGIN_HUB_CHECKLIST.md)
-- [RuneLite review notes](RUNELITE_REVIEW.md)
+- [Privacy details](PRIVACY.md)
+- [Security reporting](SECURITY.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Maintained by [Sqwiglyy](https://github.com/Sqwiglyy).

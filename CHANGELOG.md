@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete the automated and two-account RuneLite Plugin Hub launch checks.
+- Replace internal launch paperwork with a shorter fork-and-run guide.
 - Open the selected shared or player collection in a full, resizable OSRS TCG-style
   album with card faces, missing-card dimming, copy/foil counts, search, filters,
   sorting, and 21-card paging.
@@ -74,8 +76,8 @@
   with the OSRS TCG power formula.
 - Show both players an illustrated winner overlay with deterministic tie-breaks.
 - Add continuous Java 11 build/test checks and deployment-value privacy guards.
-- Add private security-reporting instructions and a prepared RuneLite reviewer
-  pre-clearance brief.
+- Add private security-reporting instructions and document the multiplayer
+  privacy boundary for review.
 
 ## v0.1.0 - development
 
