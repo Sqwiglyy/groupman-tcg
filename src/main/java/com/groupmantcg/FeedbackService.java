@@ -44,7 +44,7 @@ class FeedbackService
 		lastMessageAt = now;
 		chat.queue(QueuedMessage.builder()
 			.type(ChatMessageType.CONSOLE)
-			.runeLiteFormattedMessage("[Groupman TCG] " + message)
+			.runeLiteFormattedMessage("[Group TCG] " + message)
 			.build());
 	}
 
@@ -55,4 +55,3 @@ class FeedbackService
 		return requirements.size() > shown ? result + " and " + (requirements.size() - shown) + " more" : result;
 	}
 }
-

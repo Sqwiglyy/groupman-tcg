@@ -10,14 +10,18 @@ import java.util.Set;
 /** Authenticated server view of the grow-only union and current per-member ownership. */
 final class HostedCollectionSnapshot
 {
+	private final String groupId;
 	private final String groupName;
+	private final String localPlayerName;
 	private final Set<String> unlocks;
 	private final Map<String, Map<String, CardDetails>> members;
 
-	HostedCollectionSnapshot(String groupName, Set<String> unlocks,
+	HostedCollectionSnapshot(String groupId, String groupName, String localPlayerName, Set<String> unlocks,
 		Map<String, Map<String, CardDetails>> members)
 	{
+		this.groupId = groupId == null ? "" : groupId.trim();
 		this.groupName = groupName == null ? "" : groupName.trim();
+		this.localPlayerName = localPlayerName == null ? "" : localPlayerName.trim();
 		this.unlocks = Collections.unmodifiableSet(new HashSet<>(unlocks));
 		Map<String, Map<String, CardDetails>> safeMembers = new HashMap<>();
 		for (Map.Entry<String, Map<String, CardDetails>> entry : members.entrySet())
@@ -27,9 +31,19 @@ final class HostedCollectionSnapshot
 		this.members = Collections.unmodifiableMap(safeMembers);
 	}
 
+	String groupId()
+	{
+		return groupId;
+	}
+
 	String groupName()
 	{
 		return groupName;
+	}
+
+	String localPlayerName()
+	{
+		return localPlayerName;
 	}
 
 	Set<String> unlocks()

@@ -1,62 +1,65 @@
-# Groupman TCG privacy contract
+# Group TCG privacy contract
 
-This document describes Groupman TCG's intended data boundaries. A change that
-adds a network field or destination must update this document and add or update
-tests before release.
+This document records the intended data boundary for the RuneLite plugin and
+its optional privately hosted Cloudflare backend.
 
-## Data flow
+| Data | Local RuneLite profile | Private Worker/D1 | OSRS Wiki |
+| --- | --- | --- | --- |
+| Active RuneScape display name | Yes | Yes, after server opt-in | Never |
+| Jagex login/email/password/session | Never read | Never | Never |
+| Account ID, bank PIN | Never read | Never | Never |
+| Inventory, bank, equipment | Used transiently for visible restrictions | Never | Never |
+| Stats, XP, world, location, clan, chat | Not required | Never | Never |
+| OSRS TCG card names and copies | Yes | Yes, after server opt-in | Image name only when artwork is enabled |
+| Foil/debug flags and pull times | Yes | Yes, after server opt-in | Never |
+| Raw OSRS TCG source-instance ID | Yes | Never; SHA-256-derived opaque ID only | Never |
+| Selected solo/shared mode | Yes | Yes | Never |
+| Pack events and Top Trumps data | Yes | Yes | Never |
+| Group/member ID, invite, bearer token | Yes as required | Received over HTTPS; only invite/token hashes stored | Never |
 
-| Data | Local RuneLite profile | RuneLite Party payload | Self-hosted Worker | OSRS Wiki |
-| --- | --- | --- | --- | --- |
-| RuneScape character name | Yes, for local profile binding | No additional field | Never | Never |
-| GIM name and roster | Yes, for local verification | Opaque group hash only | Never | Never |
-| Jagex password, bank PIN, session token | Never read | Never | Never | Never |
-| Stats, XP, world, location, chat, clan data | Never uploaded | Never | Never | Never |
-| Inventory, bank, equipment contents | Inspected only for visible lock overlays | Never | Never | Never |
-| OSRS TCG shared card set | Yes | Compact card bitset | Card names/unlocks | Never |
-| Pack contents | Yes | Card name/foil/new flags | Card name/foil/new flags and time | Never |
-| Original-puller label | Local display only | Never | Never | Never |
-| Raw OSRS TCG instance ID | Local only | Never | Never; SHA-256-derived opaque ID only | Never |
-| Worker setup key | Held only for the create request; never saved | Never | Received once over HTTPS; encrypted Worker secret, never D1 | Never |
-| Groupman bearer token/invite | Local token/invite as needed | Never | Received over HTTPS; only hashes stored in D1 | Never |
-| Card artwork request | Cached locally when opted in | Never | Never | Fixed image URL and connection metadata |
+## Why the display name is stored
 
-RuneLite Party itself supplies party display names to Party participants. The
-plugin uses those local Party objects to show teammate names but does not add
-the names to its own custom message fields.
+Approved server membership replaces the old GIM-roster and RuneLite-Party
+requirement. The display name lets the owner verify join requests and lets the
+plugin match a right-clicked in-game player to an approved server member.
 
-## Privacy defaults
+The display name is sent only after **Connect to server** is enabled and a
+create/join action is performed. The backend is private, but its Cloudflare
+account owner can inspect D1 and backups. Players should join only servers run
+by people they trust.
 
-- Hosted sync is disabled by default and has no default URL.
-- Card artwork downloads are disabled by default.
-- A hosted profile token is bound to its issuing Worker URL.
-- An old token without an issuing URL is discarded instead of being redirected.
-- The setup key is entered only for first group creation and is not persisted
-  in the RuneLite profile.
-- Worker observability is disabled by the reusable server template.
-- Worker error logs do not include exception objects or request data.
+## Credentials
 
-## Hosted minimum data
+Member bearer tokens and invite codes are high-entropy Group TCG credentials,
+not Jagex credentials. The Worker stores SHA-256 hashes rather than their raw
+values. The one-time setup key remains an encrypted Worker secret and is not
+stored by the plugin or D1.
 
-The multiplayer service cannot work without sharing TCG card information. When
-a player explicitly enables hosted sync, it sends only the TCG data required
-for shared unlocks, private per-member history, and missed pack reveals, plus
-Groupman-specific authentication and random identifiers. It does not send
-RuneScape account identity or unrelated gameplay telemetry.
+The local member token is scoped to one RuneLite character profile and the
+exact server URL that issued it. Changing the configured URL does not redirect
+an existing token.
 
-Cloudflare still processes IP and connection metadata as the network provider.
-The group member who owns the Cloudflare account controls retention and account
-settings. See the
-[server privacy guide](https://github.com/Sqwiglyy/groupman-tcg-server#privacy-design).
+## Logging
 
-## Release checks
+Worker error logging uses generic messages. Request bodies, authorization
+headers, setup keys, display names, group/member IDs, card data, and challenge
+payloads must not be deliberately written to logs.
 
-Before release:
+Cloudflare necessarily processes normal connection metadata, including IP
+addresses. The deployment owner controls Cloudflare settings, D1 retention,
+backups, and deletion.
 
-1. Search request DTOs and Party message classes for new identity fields.
-2. Run `gradlew clean build` and confirm the hosted request tests pass.
-3. Confirm `Hosted server URL` is blank by default.
-4. Confirm hosted sync and artwork downloads are disabled by default.
-5. Apply all server migrations to a fresh local D1 database.
-6. Confirm the server has no RSN/original-puller request or response fields.
-7. Review the current RuneLite Plugin Hub security and rejected-feature rules.
+## Artwork
+
+Artwork downloads are disabled by default. When enabled, the client requests
+only fixed OSRS Wiki image URLs. The Wiki receives the connection IP and image
+URL but no display name, server credential, collection, or challenge data.
+
+## Review checklist for data changes
+
+1. Search request DTOs and Worker routes for new identity or gameplay fields.
+2. Update this table and the README before releasing any new field.
+3. Confirm no Jagex credential, session, inventory, bank, location, or chat data
+   is introduced.
+4. Confirm sensitive values are absent from logs, exceptions, and analytics.
+5. Run the plugin and backend privacy/build checks from a clean checkout.

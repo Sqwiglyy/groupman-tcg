@@ -43,7 +43,7 @@ public class HostedApiClientTest
 	}
 
 	@Test
-	public void createsGroupWithSetupHeaderButNoIdentityOrAuthorization() throws Exception
+	public void createsGroupWithSetupHeaderAndExplicitPrivateServerIdentity() throws Exception
 	{
 		server.enqueue(201, "{\"group\":{\"id\":\"group-1\"},"
 			+ "\"member\":{\"id\":\"member-1\",\"label\":\"Owner\",\"role\":\"owner\","
@@ -51,7 +51,7 @@ public class HostedApiClientTest
 			+ "\"invite\":{\"code\":\"ABCD-EFGH-JK23\",\"expiresAt\":1234}}");
 
 		String setupKey = "example-private-setup-key-1234";
-		HostedApiClient.CreateResponse response = api.createGroup(setupKey);
+		HostedApiClient.CreateResponse response = api.createGroup(setupKey, "Sqwiglyy", "shared");
 		assertEquals("group-1", response.group.id);
 		assertEquals("secret-token", response.member.token);
 
@@ -60,9 +60,9 @@ public class HostedApiClientTest
 		assertEquals("POST", request.method);
 		assertNull(request.header("Authorization"));
 		assertEquals(setupKey, request.header("X-Groupman-Setup-Key"));
-		assertEquals("{}", request.body);
+		assertTrue(request.body.contains("\"playerName\":\"Sqwiglyy\""));
+		assertTrue(request.body.contains("\"collectionMode\":\"shared\""));
 		assertFalse(request.body.contains(setupKey));
-		assertFalse(request.body.contains("rsn"));
 		assertFalse(request.body.contains("groupName"));
 	}
 
@@ -74,7 +74,7 @@ public class HostedApiClientTest
 			+ "\"cards\":[{\"name\":\"Great Olm\",\"foil\":true,\"isNew\":true}]}],"
 			+ "\"collection\":{\"version\":4,\"changed\":true,\"unlocks\":[\"Great Olm\"]}}");
 
-		HostedApiClient.SyncResponse response = api.sync(profile(), 7L, 3L);
+		HostedApiClient.SyncResponse response = api.sync(profile(), 7L, 4L, 3L);
 		assertEquals(9L, response.nextCursor);
 		assertFalse(response.hasMore);
 		assertEquals("Member 123456", response.events.get(0).member.label);
@@ -84,24 +84,26 @@ public class HostedApiClientTest
 		assertEquals("Bearer member-token", request.header("Authorization"));
 		assertTrue(request.path.startsWith("/v1/groups/group-1/sync?"));
 		assertTrue(request.path.contains("after=7"));
+		assertTrue(request.path.contains("topTrumpsAfter=4"));
 		assertTrue(request.path.contains("collectionVersion=3"));
 	}
 
 	@Test
-	public void joinsWithoutSendingTheLocalRuneScapeName() throws Exception
+	public void joinsWithTheApprovedPrivateServerDisplayName() throws Exception
 	{
 		server.enqueue(202, "{\"member\":{\"id\":\"member-2\",\"groupId\":\"group-1\","
 			+ "\"label\":\"Member 123456\",\"role\":\"member\",\"status\":\"pending\","
 			+ "\"token\":\"secret-token\"}}");
 
-		HostedApiClient.JoinResponse response = api.joinGroup("group-1", "ABCD-EFGH-JK23");
+		HostedApiClient.JoinResponse response = api.joinGroup("group-1", "ABCD-EFGH-JK23",
+			"Sqwiglyy", "solo");
 		assertEquals("Member 123456", response.member.label);
 
 		CapturedRequest request = server.takeRequest();
 		assertTrue(request.body.contains("\"groupId\":\"group-1\""));
 		assertTrue(request.body.contains("\"inviteCode\":\"ABCD-EFGH-JK23\""));
-		assertFalse(request.body.toLowerCase().contains("rsn"));
-		assertFalse(request.body.contains("local-only-name"));
+		assertTrue(request.body.contains("\"playerName\":\"Sqwiglyy\""));
+		assertTrue(request.body.contains("\"collectionMode\":\"solo\""));
 	}
 
 	@Test
@@ -109,13 +111,15 @@ public class HostedApiClientTest
 	{
 		server.enqueue(200, "{\"accepted\":1}");
 		api.uploadMemberCollection(profile(), "snapshot_123", List.of(
-			new HostedApiClient.CardInstanceUpload("i_opaque", "Great Olm", true, false, 1000L)), true);
+			new HostedApiClient.CardInstanceUpload("i_opaque", "Great Olm", true, false, 1000L)),
+			true, "solo");
 
 		CapturedRequest request = server.takeRequest();
 		assertEquals("/v1/groups/group-1/member-collection", request.path);
 		assertTrue(request.body.contains("\"sourceInstanceId\":\"i_opaque\""));
 		assertTrue(request.body.contains("\"foil\":true"));
 		assertTrue(request.body.contains("\"debug\":false"));
+		assertTrue(request.body.contains("\"collectionMode\":\"solo\""));
 		assertFalse(request.body.contains("pulledBy"));
 		assertFalse(request.body.contains("Example Player"));
 
@@ -132,6 +136,24 @@ public class HostedApiClientTest
 			assertEquals("approval_required", ex.code());
 			assertEquals("Owner approval required", ex.getMessage());
 		}
+	}
+
+	@Test
+	public void createsAndRespondsToServerTopTrumpsChallenges() throws Exception
+	{
+		server.enqueue(201, "{\"challengeId\":\"duel-123456\",\"expiresAt\":9999}");
+		HostedApiClient.TopTrumpsChallengeResponse response =
+			api.createTopTrumpsChallenge(profile(), "member-2");
+		assertEquals("duel-123456", response.challengeId);
+		CapturedRequest create = server.takeRequest();
+		assertEquals("/v1/groups/group-1/top-trumps/challenges", create.path);
+		assertTrue(create.body.contains("\"targetMemberId\":\"member-2\""));
+
+		server.enqueue(200, "{\"challengeId\":\"duel-123456\",\"status\":\"accepted\"}");
+		api.respondTopTrumpsChallenge(profile(), "duel-123456", true);
+		CapturedRequest accept = server.takeRequest();
+		assertEquals("/v1/groups/group-1/top-trumps/challenges/duel-123456/response", accept.path);
+		assertTrue(accept.body.contains("\"accepted\":true"));
 	}
 
 	@Test

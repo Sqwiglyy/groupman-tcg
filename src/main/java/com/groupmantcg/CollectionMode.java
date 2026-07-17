@@ -3,7 +3,8 @@ package com.groupmantcg;
 public enum CollectionMode
 {
 	SOLO("Solo collection"),
-	GROUP_IRONMAN("Shared GIM collection");
+	// Kept as the stored enum name so existing RuneLite profiles upgrade without losing their choice.
+	GROUP_IRONMAN("Shared server collection");
 
 	private final String label;
 
@@ -18,4 +19,3 @@ public enum CollectionMode
 		return label;
 	}
 }
-

@@ -15,6 +15,7 @@ final class HostedProfile
 	String inviteCode;
 	long inviteExpiresAt;
 	long eventCursor;
+	long topTrumpsCursor;
 	long collectionVersion;
 	String lastUploadedFingerprint;
 

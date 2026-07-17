@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.0-rc.4 - 2026-07-17
+
+- Rename the user-facing plugin from Groupman TCG to Group TCG while retaining
+  internal configuration keys so existing local profiles continue to load.
+- Remove the official GIM/HCGIM roster and RuneLite Party requirements.
+- Make approved private-server membership the authority for shared unlocks,
+  individual collection browsing, pack reveals, and player matching.
+- Let every player independently choose shared-server or solo unlocks while
+  remaining eligible for server Top Trumps.
+- Move consent, random card draws, and results to authenticated server events;
+  add sidebar challenges and retain in-game right-click challenges.
+- Store the RuneScape display name on the explicitly selected private server
+  and document the new privacy boundary.
+
 ## v0.1.0-rc.3 - 2026-07-17
 
 - Adapt OSRS TCG's real card-face renderer for group pack reveals and Top

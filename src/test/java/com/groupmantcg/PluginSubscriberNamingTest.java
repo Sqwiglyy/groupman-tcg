@@ -2,6 +2,7 @@ package com.groupmantcg;
 
 import java.lang.reflect.Method;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.plugins.PluginDescriptor;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -21,5 +22,14 @@ public class PluginSubscriberNamingTest
 			assertEquals("Subscriber must be named after its event type",
 				"on" + method.getParameterTypes()[0].getSimpleName(), method.getName());
 		}
+	}
+
+	@Test
+	public void exposesTheGroupTcgNameAndServerCollectionModes()
+	{
+		PluginDescriptor descriptor = GroupmanTcgPlugin.class.getAnnotation(PluginDescriptor.class);
+		assertEquals("Group TCG", descriptor.name());
+		assertEquals("Solo collection", CollectionMode.SOLO.toString());
+		assertEquals("Shared server collection", CollectionMode.GROUP_IRONMAN.toString());
 	}
 }

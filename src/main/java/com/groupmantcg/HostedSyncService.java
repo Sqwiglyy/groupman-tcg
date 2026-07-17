@@ -27,16 +27,14 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
-import net.runelite.api.clan.ClanID;
-import net.runelite.api.clan.ClanSettings;
 import net.runelite.client.callback.ClientThread;
 
-/** Durable Cloudflare sync; RuneLite Party remains the instant, opportunistic transport. */
+/** Durable private-server membership, collection, pack, and Top Trumps sync. */
 @Slf4j
 @Singleton
 class HostedSyncService
 {
-	private static final long SYNC_INTERVAL_MILLIS = 30_000L;
+	private static final long SYNC_INTERVAL_MILLIS = 5_000L;
 	private static final long RETRY_INTERVAL_MILLIS = 60_000L;
 	private static final long MEMBER_REFRESH_MILLIS = 5 * 60_000L;
 	private static final int COLLECTION_CHUNK = 150;
@@ -50,13 +48,14 @@ class HostedSyncService
 	private final HostedApiClient api;
 	private final HostedProfileStore profileStore;
 	private final Provider<GroupPackRevealService> packRevealService;
+	private final Provider<TopTrumpsService> topTrumpsService;
 	private final ScheduledExecutorService executor;
 	private final AtomicBoolean busy = new AtomicBoolean();
 	private final Deque<HostedApiClient.PackUpload> pendingPacks = new ArrayDeque<>();
 
 	private volatile HostedProfile profile;
 	private volatile HostedSyncStatus status = HostedSyncStatus.simple(
-		HostedSyncStatus.State.NOT_LINKED, "Create or join a hosted group");
+		HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
 	private volatile PlayerContext context = PlayerContext.empty();
 	private volatile long nextSyncAt;
 	private volatile boolean forceUpload;
@@ -69,7 +68,7 @@ class HostedSyncService
 	HostedSyncService(Client client, ClientThread clientThread, GroupmanTcgConfig config,
 		LocalCollection localCollection, SharedCollectionService sharedCollection, HostedApiClient api,
 		HostedProfileStore profileStore, Provider<GroupPackRevealService> packRevealService,
-		ScheduledExecutorService executor)
+		Provider<TopTrumpsService> topTrumpsService, ScheduledExecutorService executor)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
@@ -79,6 +78,7 @@ class HostedSyncService
 		this.api = api;
 		this.profileStore = profileStore;
 		this.packRevealService = packRevealService;
+		this.topTrumpsService = topTrumpsService;
 		this.executor = executor;
 	}
 
@@ -86,6 +86,7 @@ class HostedSyncService
 	{
 		started = true;
 		reloadProfile();
+		publishHostedContext();
 		nextSyncAt = 0L;
 	}
 
@@ -107,26 +108,26 @@ class HostedSyncService
 		updateContext();
 		if (!config.hostedSyncEnabled())
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.DISABLED, "Hosted sync disabled in settings");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.DISABLED, "Private server disabled in settings");
 			return;
 		}
 		HostedProfile current = profile;
 		if (current == null)
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a hosted group");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
 			return;
 		}
 		PlayerContext currentContext = context;
 		if (!currentContext.ready())
 		{
 			status = statusFor(current, HostedSyncStatus.State.WRONG_PROFILE,
-				"Log into the linked Group Ironman account", lastMembers, status.lastSyncedAt());
+				"Log into the linked RuneScape character", lastMembers, status.lastSyncedAt());
 			return;
 		}
 		if (!EntityCardCatalog.normalize(current.rsn).equals(EntityCardCatalog.normalize(currentContext.rsn)))
 		{
 			status = statusFor(current, HostedSyncStatus.State.WRONG_PROFILE,
-				"This hosted token belongs to " + current.rsn, lastMembers, status.lastSyncedAt());
+				"This server token belongs to " + current.rsn, lastMembers, status.lastSyncedAt());
 			return;
 		}
 		long now = System.currentTimeMillis();
@@ -150,6 +151,7 @@ class HostedSyncService
 	{
 		context = PlayerContext.empty();
 		reloadProfile();
+		publishHostedContext();
 		lastMembers = Collections.emptyList();
 		lastMemberRefreshAt = 0L;
 		lastMemberVersion = -1L;
@@ -165,6 +167,13 @@ class HostedSyncService
 		nextSyncAt = 0L;
 	}
 
+	void collectionModeChanged()
+	{
+		forceUpload = true;
+		nextSyncAt = 0L;
+		sharedCollection.contextChanged();
+	}
+
 	void syncNow()
 	{
 		nextSyncAt = 0L;
@@ -175,13 +184,86 @@ class HostedSyncService
 		return status;
 	}
 
+	HostedSyncStatus.Member memberByPlayerName(String playerName)
+	{
+		if (playerName == null)
+		{
+			return null;
+		}
+		String key = EntityCardCatalog.normalize(playerName);
+		for (HostedSyncStatus.Member member : lastMembers)
+		{
+			if (member.approved() && key.equals(EntityCardCatalog.normalize(member.playerName())))
+			{
+				return member;
+			}
+		}
+		return null;
+	}
+
+	boolean canChallenge(String memberId)
+	{
+		HostedProfile current = profile;
+		if (!started || !config.hostedSyncEnabled() || current == null || !current.approved()
+			|| memberId == null || memberId.equals(current.memberId))
+		{
+			return false;
+		}
+		for (HostedSyncStatus.Member member : lastMembers)
+		{
+			if (member.approved() && member.id().equals(memberId))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void challengeMember(String memberId, ActionCallback callback)
+	{
+		HostedProfile current = profile;
+		if (current == null || !canChallenge(memberId))
+		{
+			complete(callback, "That player is not an approved member of this private server.");
+			return;
+		}
+		runConcurrentAction(callback, () ->
+		{
+			api.createTopTrumpsChallenge(current, memberId);
+			if (profile != current || !started)
+			{
+				throw new IOException("The active RuneScape profile changed");
+			}
+			nextSyncAt = 0L;
+		});
+	}
+
+	void respondTopTrumps(String challengeId, boolean accepted, ActionCallback callback)
+	{
+		HostedProfile current = profile;
+		if (current == null || !current.approved())
+		{
+			complete(callback, "Connect to the approved server membership first.");
+			return;
+		}
+		runConcurrentAction(callback, () ->
+		{
+			api.respondTopTrumpsChallenge(current, challengeId, accepted);
+			if (profile != current || !started)
+			{
+				throw new IOException("The active RuneScape profile changed");
+			}
+			nextSyncAt = 0L;
+		});
+	}
+
 	void createGroup(String setupKey, ActionCallback callback)
 	{
 		PlayerContext currentContext = context;
 		String cleanSetupKey = setupKey == null ? "" : setupKey.trim();
 		if (!currentContext.ready())
 		{
-			complete(callback, "Log into the Group Ironman account first.");
+			complete(callback, "Log into the RuneScape character first.");
 			return;
 		}
 		if (cleanSetupKey.length() < 16 || cleanSetupKey.length() > 256)
@@ -201,7 +283,8 @@ class HostedSyncService
 		}
 		runAction(callback, () ->
 		{
-			HostedApiClient.CreateResponse response = api.createGroupAt(selectedServer, cleanSetupKey);
+			HostedApiClient.CreateResponse response = api.createGroupAt(selectedServer, cleanSetupKey,
+				currentContext.rsn, collectionModeValue());
 			if (response.group == null || response.member == null || response.invite == null)
 			{
 				throw new IOException("The hosted service returned an incomplete group");
@@ -210,13 +293,13 @@ class HostedSyncService
 			{
 				throw new IOException("The active RuneScape profile changed during setup");
 			}
-			HostedProfile created = profileFrom(response.group, response.member,
-				currentContext.groupName, currentContext.rsn);
+			HostedProfile created = profileFrom(response.group, response.member, currentContext.rsn);
 			created.serverUrl = selectedServer;
 			created.inviteCode = response.invite.code;
 			created.inviteExpiresAt = response.invite.expiresAt;
 			profileStore.save(created);
 			profile = created;
+			publishHostedContext();
 			forceUpload = true;
 			status = statusFor(created, HostedSyncStatus.State.SYNCING, "Hosted group created; initial sync pending",
 				Collections.emptyList(), 0L);
@@ -231,7 +314,7 @@ class HostedSyncService
 		String cleanInvite = inviteCode == null ? "" : inviteCode.trim();
 		if (!currentContext.ready())
 		{
-			complete(callback, "Log into the Group Ironman account first.");
+			complete(callback, "Log into the RuneScape character first.");
 			return;
 		}
 		if (cleanGroup.isEmpty() || cleanInvite.isEmpty())
@@ -251,7 +334,8 @@ class HostedSyncService
 		}
 		runAction(callback, () ->
 		{
-			HostedApiClient.JoinResponse response = api.joinGroupAt(selectedServer, cleanGroup, cleanInvite);
+			HostedApiClient.JoinResponse response = api.joinGroupAt(selectedServer, cleanGroup, cleanInvite,
+				currentContext.rsn, collectionModeValue());
 			if (response.member == null)
 			{
 				throw new IOException("The hosted service returned an incomplete membership");
@@ -260,12 +344,12 @@ class HostedSyncService
 			{
 				throw new IOException("The active RuneScape profile changed during setup");
 			}
-			HostedProfile joined = profileFrom(null, response.member,
-				currentContext.groupName, currentContext.rsn);
+			HostedProfile joined = profileFrom(null, response.member, currentContext.rsn);
 			joined.groupId = cleanGroup;
 			joined.serverUrl = selectedServer;
 			profileStore.save(joined);
 			profile = joined;
+			publishHostedContext();
 			status = statusFor(joined, HostedSyncStatus.State.WAITING_APPROVAL,
 				"Waiting for the group owner to approve " + response.member.label,
 				Collections.emptyList(), 0L);
@@ -349,7 +433,8 @@ class HostedSyncService
 		lastMembers = Collections.emptyList();
 		lastMemberRefreshAt = 0L;
 		lastMemberVersion = -1L;
-		status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a hosted group");
+		status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
+		sharedCollection.hostedContextChanged(null, null, null, false);
 		synchronized (pendingPacks)
 		{
 			pendingPacks.clear();
@@ -414,10 +499,12 @@ class HostedSyncService
 
 			Set<String> unlocks = new HashSet<>();
 			List<HostedApiClient.PackEvent> events = new ArrayList<>();
+			List<HostedApiClient.TopTrumpsEvent> topTrumpsEvents = new ArrayList<>();
 			long previousVersion = current.collectionVersion;
 			for (int page = 0; page < 20; page++)
 			{
-				HostedApiClient.SyncResponse sync = api.sync(current, current.eventCursor, current.collectionVersion);
+				HostedApiClient.SyncResponse sync = api.sync(current, current.eventCursor,
+					current.topTrumpsCursor, current.collectionVersion);
 				if (sync.collection != null)
 				{
 					current.collectionVersion = sync.collection.version;
@@ -436,7 +523,12 @@ class HostedSyncService
 				{
 					events.addAll(sync.events);
 				}
+				if (sync.topTrumpsEvents != null)
+				{
+					topTrumpsEvents.addAll(sync.topTrumpsEvents);
+				}
 				current.eventCursor = Math.max(current.eventCursor, sync.nextCursor);
+				current.topTrumpsCursor = Math.max(current.topTrumpsCursor, sync.topTrumpsNextCursor);
 				if (!sync.hasMore)
 				{
 					break;
@@ -454,7 +546,8 @@ class HostedSyncService
 			}
 			else if (!unlocks.isEmpty())
 			{
-				hostedSnapshot = new HostedCollectionSnapshot(current.groupName, unlocks, Collections.emptyMap());
+				hostedSnapshot = new HostedCollectionSnapshot(current.groupId, current.groupName,
+					current.rsn, unlocks, Collections.emptyMap());
 			}
 
 			if (profile != current || !started)
@@ -463,7 +556,7 @@ class HostedSyncService
 			}
 			profileStore.save(current);
 			profile = current;
-			applyHostedResults(current, hostedSnapshot, events);
+			applyHostedResults(current, hostedSnapshot, events, topTrumpsEvents);
 			status = statusFor(current, HostedSyncStatus.State.ONLINE,
 				"Cloudflare synced " + lastMembers.size() + " member" + (lastMembers.size() == 1 ? "" : "s"),
 				lastMembers, now);
@@ -475,7 +568,7 @@ class HostedSyncService
 		}
 		catch (Exception ex)
 		{
-			log.debug("Hosted Groupman TCG sync failed", ex);
+			log.debug("Hosted Group TCG sync failed", ex);
 			status = statusFor(current, HostedSyncStatus.State.ERROR,
 				"Cloudflare unavailable; using cached unlocks", lastMembers, status.lastSyncedAt());
 			nextSyncAt = System.currentTimeMillis() + RETRY_INTERVAL_MILLIS;
@@ -503,7 +596,7 @@ class HostedSyncService
 		else if (ex.status() == 401)
 		{
 			status = statusFor(current, HostedSyncStatus.State.ERROR,
-				"Hosted credentials were revoked; disconnect and join again", lastMembers, status.lastSyncedAt());
+				"Server credentials were revoked; disconnect and join again", lastMembers, status.lastSyncedAt());
 		}
 		else
 		{
@@ -524,9 +617,15 @@ class HostedSyncService
 
 	private void updateProfileFromGroup(HostedProfile current, HostedApiClient.GroupResponse group)
 	{
+		current.groupName = serverGroupName(current.groupId);
 		current.memberLabel = group.currentMember.label;
+		if (group.currentMember.playerName != null && !group.currentMember.playerName.trim().isEmpty())
+		{
+			current.rsn = group.currentMember.playerName.trim();
+		}
 		current.role = group.currentMember.role;
 		current.status = group.currentMember.status;
+		publishHostedContext();
 	}
 
 	private void uploadPendingPacks(HostedProfile current) throws IOException
@@ -568,13 +667,15 @@ class HostedSyncService
 		String snapshotId = "snapshot_" + UUID.randomUUID();
 		if (instances.isEmpty())
 		{
-			api.uploadMemberCollection(current, snapshotId, Collections.emptyList(), true);
+			api.uploadMemberCollection(current, snapshotId, Collections.emptyList(), true,
+				collectionModeValue());
 			return;
 		}
 		for (int offset = 0; offset < instances.size(); offset += COLLECTION_CHUNK)
 		{
 			int end = Math.min(instances.size(), offset + COLLECTION_CHUNK);
-			api.uploadMemberCollection(current, snapshotId, instances.subList(offset, end), end == instances.size());
+			api.uploadMemberCollection(current, snapshotId, instances.subList(offset, end),
+				end == instances.size(), collectionModeValue());
 		}
 	}
 
@@ -585,7 +686,7 @@ class HostedSyncService
 		Map<String, Map<String, HostedCollectionSnapshot.CardDetails>> members = new LinkedHashMap<>();
 		if (summaries.members == null)
 		{
-			return new HostedCollectionSnapshot(groupName, unlocks, members);
+			return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks, members);
 		}
 		for (HostedApiClient.MemberSummary summary : summaries.members)
 		{
@@ -622,14 +723,15 @@ class HostedSyncService
 			{
 				cards.put(entry.getKey(), entry.getValue().freeze());
 			}
-			String shownName = current.memberId.equals(summary.id) ? current.rsn : summary.label;
+			String shownName = summary.playerName == null || summary.playerName.trim().isEmpty()
+				? summary.label : summary.playerName.trim();
 			members.put(shownName, cards);
 		}
-		return new HostedCollectionSnapshot(groupName, unlocks, members);
+		return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks, members);
 	}
 
 	private void applyHostedResults(HostedProfile current, HostedCollectionSnapshot snapshot,
-		List<HostedApiClient.PackEvent> events)
+		List<HostedApiClient.PackEvent> events, List<HostedApiClient.TopTrumpsEvent> topTrumpsEvents)
 	{
 		clientThread.invokeLater(() ->
 		{
@@ -658,29 +760,33 @@ class HostedSyncService
 				}
 				packRevealService.get().hostedReveal(event.eventId, event.member.label, pulls);
 			}
+			for (HostedApiClient.TopTrumpsEvent event : topTrumpsEvents)
+			{
+				if (event != null)
+				{
+					topTrumpsService.get().hostedEvent(event);
+				}
+			}
 		});
 	}
 
 	private void updateContext()
 	{
-		if (client.getGameState() != GameState.LOGGED_IN || client.getAccountType() == null
-			|| !client.getAccountType().isGroupIronman())
+		if (client.getGameState() != GameState.LOGGED_IN)
 		{
 			clearContext();
 			return;
 		}
 		Player player = client.getLocalPlayer();
-		ClanSettings settings = client.getClanSettings(ClanID.GROUP_IRONMAN);
-		if (player == null || player.getName() == null || settings == null || settings.getName() == null)
+		if (player == null || player.getName() == null)
 		{
 			clearContext();
 			return;
 		}
 		String rsn = player.getName().trim();
-		String groupName = settings.getName().trim();
-		if (!context.matches(rsn, groupName))
+		if (!context.matches(rsn))
 		{
-			context = new PlayerContext(rsn, groupName);
+			context = new PlayerContext(rsn);
 		}
 	}
 
@@ -704,11 +810,12 @@ class HostedSyncService
 		// Re-request the grow-only union once per client/profile session so hosted state can rebuild a missing local cache.
 		if (profile != null)
 		{
+			profile.groupName = serverGroupName(profile.groupId);
 			profile.collectionVersion = 0L;
 		}
 		if (profile == null)
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a hosted group");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
 		}
 		else
 		{
@@ -739,7 +846,7 @@ class HostedSyncService
 			}
 			catch (Exception ex)
 			{
-				log.debug("Hosted Groupman TCG action failed", ex);
+				log.debug("Hosted Group TCG action failed", ex);
 				error = "Cloudflare could not complete the request.";
 			}
 			finally
@@ -750,12 +857,34 @@ class HostedSyncService
 		});
 	}
 
-	private static HostedProfile profileFrom(HostedApiClient.GroupRef group, HostedApiClient.MemberRef member,
-		String localGroupName, String localRsn)
+	private void runConcurrentAction(ActionCallback callback, BackgroundAction action)
+	{
+		executor.execute(() ->
+		{
+			String error = null;
+			try
+			{
+				action.run();
+			}
+			catch (HostedApiException ex)
+			{
+				error = ex.getMessage();
+			}
+			catch (Exception ex)
+			{
+				log.debug("Hosted Group TCG action failed", ex);
+				error = "The private server could not complete the request.";
+			}
+			complete(callback, error);
+		});
+	}
+
+	private static HostedProfile profileFrom(HostedApiClient.GroupRef group,
+		HostedApiClient.MemberRef member, String localRsn)
 	{
 		HostedProfile result = new HostedProfile();
 		result.groupId = group != null ? group.id : member.groupId;
-		result.groupName = localGroupName;
+		result.groupName = serverGroupName(result.groupId);
 		result.memberId = member.id;
 		result.memberLabel = member.label;
 		result.rsn = localRsn;
@@ -775,8 +904,8 @@ class HostedSyncService
 			{
 				if (member != null)
 				{
-					result.add(new HostedSyncStatus.Member(member.id, member.label, member.role,
-						member.status, member.revoked));
+					result.add(new HostedSyncStatus.Member(member.id, member.label, member.playerName,
+						member.collectionMode, member.role, member.status, member.revoked));
 				}
 			}
 		}
@@ -786,8 +915,8 @@ class HostedSyncService
 	private static HostedSyncStatus statusFor(HostedProfile profile, HostedSyncStatus.State state,
 		String detail, List<HostedSyncStatus.Member> members, long lastSyncedAt)
 	{
-		return new HostedSyncStatus(state, detail, profile.groupName, profile.groupId, profile.memberLabel,
-			profile.owner(),
+		return new HostedSyncStatus(state, detail, profile.groupName, profile.groupId, profile.memberId,
+			profile.memberLabel, profile.owner(),
 			profile.inviteCode, profile.inviteExpiresAt, lastSyncedAt, members);
 	}
 
@@ -795,6 +924,29 @@ class HostedSyncService
 	{
 		return profile.memberLabel == null || profile.memberLabel.trim().isEmpty()
 			? "this membership" : profile.memberLabel;
+	}
+
+	private void publishHostedContext()
+	{
+		HostedProfile current = profile;
+		sharedCollection.hostedContextChanged(current == null ? null : current.groupId,
+			current == null ? null : current.groupName, current == null ? null : current.rsn,
+			current != null && current.approved());
+	}
+
+	private String collectionModeValue()
+	{
+		return config.collectionMode() == CollectionMode.SOLO ? "solo" : "shared";
+	}
+
+	private static String serverGroupName(String groupId)
+	{
+		if (groupId == null || groupId.trim().isEmpty())
+		{
+			return "Private server";
+		}
+		String clean = groupId.trim();
+		return "Server " + clean.substring(0, Math.min(8, clean.length()));
 	}
 
 	private static String fingerprint(List<LocalCollection.CardInstance> instances)
@@ -839,28 +991,25 @@ class HostedSyncService
 	private static final class PlayerContext
 	{
 		private final String rsn;
-		private final String groupName;
 
-		private PlayerContext(String rsn, String groupName)
+		private PlayerContext(String rsn)
 		{
 			this.rsn = rsn;
-			this.groupName = groupName;
 		}
 
 		private boolean ready()
 		{
-			return !rsn.isEmpty() && !groupName.isEmpty();
+			return !rsn.isEmpty();
 		}
 
-		private boolean matches(String otherRsn, String otherGroupName)
+		private boolean matches(String otherRsn)
 		{
-			return EntityCardCatalog.normalize(rsn).equals(EntityCardCatalog.normalize(otherRsn))
-				&& EntityCardCatalog.normalize(groupName).equals(EntityCardCatalog.normalize(otherGroupName));
+			return EntityCardCatalog.normalize(rsn).equals(EntityCardCatalog.normalize(otherRsn));
 		}
 
 		private static PlayerContext empty()
 		{
-			return new PlayerContext("", "");
+			return new PlayerContext("");
 		}
 	}
 

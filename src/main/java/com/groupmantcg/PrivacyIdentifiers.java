@@ -5,17 +5,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
-/** Produces opaque identifiers for transports; raw RuneScape and GIM names stay local. */
+/** Keeps raw OSRS TCG source-instance IDs out of private-server payloads. */
 final class PrivacyIdentifiers
 {
 	private PrivacyIdentifiers()
 	{
-	}
-
-	static String groupKey(String groupName)
-	{
-		String normalized = EntityCardCatalog.normalize(groupName).replaceAll("\\s+", " ");
-		return digest("group\u0000" + normalized);
 	}
 
 	static String collectionInstance(String instanceId)

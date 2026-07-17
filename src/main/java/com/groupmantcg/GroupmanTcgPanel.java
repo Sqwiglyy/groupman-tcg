@@ -32,21 +32,23 @@ class GroupmanTcgPanel extends PluginPanel
 	private static final int MAX_RESULTS = 20;
 	private final SharedCollectionService collection;
 	private final HostedSyncService hosted;
+	private final TopTrumpsService topTrumps;
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
 	private final IconTextField search = new IconTextField();
 	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
-	private final JLabel hostedStatus = muted("Loading hosted sync...");
+	private final JLabel hostedStatus = muted("Loading private server...");
 	private final JPanel hostedActions = body();
 	private final JPanel results = body();
 	private boolean updatingSelector;
 
 	GroupmanTcgPanel(SharedCollectionService collection, HostedSyncService hosted,
-		MonsterCardCatalog monsters, ItemCardCatalog items)
+		TopTrumpsService topTrumps, MonsterCardCatalog monsters, ItemCardCatalog items)
 	{
 		this.collection = collection;
 		this.hosted = hosted;
+		this.topTrumps = topTrumps;
 		this.monsters = monsters;
 		this.items = items;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -91,7 +93,7 @@ class GroupmanTcgPanel extends PluginPanel
 		add(collectionSelector);
 		add(header("Group status"));
 		add(syncStatus);
-		add(header("Hosted sync"));
+		add(header("Private server"));
 		add(hostedStatus);
 		add(hostedActions);
 		add(header("Card lookup"));
@@ -114,11 +116,10 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 		else
 		{
-			String members = status.isInParty()
-				? status.getSyncedMembers() + "/" + status.getRosterMembers() + " members seen"
-				: "offline cache";
+			String members = status.getSyncedMembers() + " approved member"
+				+ (status.getSyncedMembers() == 1 ? "" : "s");
 			syncStatus.setText(status.getGroupName() + " · " + status.getCards() + " cards · " + members);
-			syncStatus.setForeground(status.isInParty()
+			syncStatus.setForeground(status.isConnected()
 				? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.BRAND_ORANGE);
 		}
 		syncStatus.setToolTipText(status.getDetail());
@@ -153,9 +154,9 @@ class GroupmanTcgPanel extends PluginPanel
 		hostedActions.removeAll();
 		if (current.state() == HostedSyncStatus.State.NOT_LINKED)
 		{
-			hostedActions.add(actionButton("Create hosted group", this::createHostedGroup));
+			hostedActions.add(actionButton("Create private group", this::createHostedGroup));
 			hostedActions.add(Box.createVerticalStrut(4));
-			hostedActions.add(actionButton("Join hosted group", this::joinHostedGroup));
+			hostedActions.add(actionButton("Join private group", this::joinHostedGroup));
 		}
 		else if (current.linked())
 		{
@@ -164,14 +165,14 @@ class GroupmanTcgPanel extends PluginPanel
 			hostedActions.add(id);
 			if (!current.memberLabel().isEmpty())
 			{
-				hostedActions.add(muted("Your private label: " + current.memberLabel()));
+				hostedActions.add(muted("Your server label: " + current.memberLabel()));
 			}
 			if (current.owner())
 			{
 				if (!current.inviteCode().isEmpty())
 				{
 					JLabel invite = muted("Invite: " + current.inviteCode());
-					invite.setToolTipText("Share this only with your GIM teammates.");
+					invite.setToolTipText("Share this only with people you want on this private server.");
 					hostedActions.add(invite);
 					hostedActions.add(actionButton("Copy join details", this::copyJoinDetails));
 				}
@@ -183,17 +184,32 @@ class GroupmanTcgPanel extends PluginPanel
 					if (member.pending())
 					{
 						hostedActions.add(Box.createVerticalStrut(4));
-						JLabel warning = muted("Confirm " + member.label() + " with your teammate");
-						warning.setToolTipText("RuneScape names are deliberately never sent to the hosted server.");
+						String pendingName = member.playerName().isEmpty() ? member.label() : member.playerName();
+						JLabel warning = muted("Confirm " + pendingName + " with your teammate");
+						warning.setToolTipText("Confirm the displayed RuneScape name with your friend before approving.");
 						hostedActions.add(warning);
-						hostedActions.add(actionButton("Approve " + member.label(), () -> approve(member)));
-						hostedActions.add(actionButton("Reject " + member.label(), () -> revoke(member)));
+						hostedActions.add(actionButton("Approve " + pendingName, () -> approve(member)));
+						hostedActions.add(actionButton("Reject " + pendingName, () -> revoke(member)));
 					}
 					else if (!member.revoked() && "member".equals(member.role()))
 					{
 						hostedActions.add(Box.createVerticalStrut(4));
-						hostedActions.add(actionButton("Revoke " + member.label(), () -> revoke(member)));
+						String memberName = member.playerName().isEmpty() ? member.label() : member.playerName();
+						hostedActions.add(actionButton("Revoke " + memberName, () -> revoke(member)));
 					}
+				}
+			}
+			for (HostedSyncStatus.Member member : current.members())
+			{
+				if (member.approved() && !member.id().equals(current.memberId()))
+				{
+					hostedActions.add(Box.createVerticalStrut(4));
+					String player = member.playerName().isEmpty() ? member.label() : member.playerName();
+					String mode = "solo".equals(member.collectionMode())
+						? "Solo collection" : "Shared collection";
+					hostedActions.add(muted(player + " - " + mode));
+					hostedActions.add(actionButton("Challenge " + player,
+						() -> topTrumps.challengeMember(member)));
 				}
 			}
 			if (current.state() == HostedSyncStatus.State.WAITING_APPROVAL
@@ -217,9 +233,9 @@ class GroupmanTcgPanel extends PluginPanel
 		form.add(setupKey);
 		form.add(Box.createVerticalStrut(6));
 		form.add(muted("Used once to claim this private Worker; never saved by the plugin."));
-		form.add(muted("No RuneScape name or GIM name will be uploaded."));
+		form.add(muted("Your RuneScape display name will be stored on this private server."));
 		int choice = JOptionPane.showConfirmDialog(this, form,
-			"Create private hosted group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			"Create private Group TCG group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
 			char[] password = setupKey.getPassword();
@@ -241,7 +257,7 @@ class GroupmanTcgPanel extends PluginPanel
 		form.add(new JLabel("Invite code"));
 		form.add(invite);
 		int choice = JOptionPane.showConfirmDialog(this, form,
-			"Join private hosted group (RuneScape name stays local)",
+			"Join private Group TCG server",
 			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
@@ -257,8 +273,8 @@ class GroupmanTcgPanel extends PluginPanel
 	private void revoke(HostedSyncStatus.Member member)
 	{
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove " + member.label() + " from hosted sync? Their permanent unlocks remain.",
-			"Revoke hosted member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+			"Remove " + member.label() + " from this server? Their permanent unlocks remain.",
+			"Revoke server member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
 			hosted.revokeMember(member.id(), this::actionFinished);
@@ -273,8 +289,8 @@ class GroupmanTcgPanel extends PluginPanel
 	private void disconnectHosted()
 	{
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove this profile's hosted token? Shared unlocks remain cached.",
-			"Disconnect hosted group", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+			"Remove this profile's server token? Shared unlocks remain cached.",
+			"Disconnect private server", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
 			hosted.disconnect();
@@ -285,7 +301,7 @@ class GroupmanTcgPanel extends PluginPanel
 	private void copyJoinDetails()
 	{
 		HostedSyncStatus current = hosted.status();
-		String text = "Groupman TCG group ID: " + current.groupId()
+		String text = "Group TCG group ID: " + current.groupId()
 			+ System.lineSeparator() + "Invite code: " + current.inviteCode();
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 		hostedStatus.setText("Join details copied");
@@ -295,7 +311,7 @@ class GroupmanTcgPanel extends PluginPanel
 	{
 		if (error != null)
 		{
-			JOptionPane.showMessageDialog(this, error, "Hosted sync", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(this, error, "Private server", JOptionPane.ERROR_MESSAGE);
 		}
 		refresh();
 	}

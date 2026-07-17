@@ -43,25 +43,30 @@ class HostedApiClient
 		this.fixedBaseUrl = parseBaseUrl(baseUrl);
 	}
 
-	CreateResponse createGroup(String setupKey) throws IOException
+	CreateResponse createGroup(String setupKey, String playerName, String collectionMode) throws IOException
 	{
-		return createGroupAt(configuredBaseUrl(), setupKey);
+		return createGroupAt(configuredBaseUrl(), setupKey, playerName, collectionMode);
 	}
 
-	CreateResponse createGroupAt(String serverUrl, String setupKey) throws IOException
+	CreateResponse createGroupAt(String serverUrl, String setupKey, String playerName,
+		String collectionMode) throws IOException
 	{
-		return call("POST", url(serverUrl, "v1", "groups"), new EmptyRequest(), null,
+		return call("POST", url(serverUrl, "v1", "groups"),
+			new MembershipRequest(playerName, collectionMode), null,
 			CreateResponse.class, setupKey);
 	}
 
-	JoinResponse joinGroup(String groupId, String inviteCode) throws IOException
+	JoinResponse joinGroup(String groupId, String inviteCode, String playerName,
+		String collectionMode) throws IOException
 	{
-		return joinGroupAt(configuredBaseUrl(), groupId, inviteCode);
+		return joinGroupAt(configuredBaseUrl(), groupId, inviteCode, playerName, collectionMode);
 	}
 
-	JoinResponse joinGroupAt(String serverUrl, String groupId, String inviteCode) throws IOException
+	JoinResponse joinGroupAt(String serverUrl, String groupId, String inviteCode,
+		String playerName, String collectionMode) throws IOException
 	{
-		return call("POST", url(serverUrl, "v1", "join"), new JoinRequest(groupId, inviteCode), null,
+		return call("POST", url(serverUrl, "v1", "join"),
+			new JoinRequest(groupId, inviteCode, playerName, collectionMode), null,
 			JoinResponse.class);
 	}
 
@@ -89,10 +94,11 @@ class HostedApiClient
 	}
 
 	void uploadMemberCollection(HostedProfile profile, String snapshotId,
-		List<CardInstanceUpload> instances, boolean complete) throws IOException
+		List<CardInstanceUpload> instances, boolean complete, String collectionMode) throws IOException
 	{
 		call("POST", url(profile, "v1", "groups", profile.groupId, "member-collection"),
-			new MemberCollectionRequest(snapshotId, complete, instances), profile, EmptyResponse.class);
+			new MemberCollectionRequest(snapshotId, complete, collectionMode, instances),
+			profile, EmptyResponse.class);
 	}
 
 	void uploadPack(HostedProfile profile, PackUpload pack) throws IOException
@@ -100,14 +106,32 @@ class HostedApiClient
 		call("POST", url(profile, "v1", "groups", profile.groupId, "packs"), pack, profile, EmptyResponse.class);
 	}
 
-	SyncResponse sync(HostedProfile profile, long cursor, long collectionVersion) throws IOException
+	SyncResponse sync(HostedProfile profile, long cursor, long topTrumpsCursor,
+		long collectionVersion) throws IOException
 	{
 		HttpUrl target = url(profile, "v1", "groups", profile.groupId, "sync").newBuilder()
 			.addQueryParameter("after", Long.toString(Math.max(0L, cursor)))
+			.addQueryParameter("topTrumpsAfter", Long.toString(Math.max(0L, topTrumpsCursor)))
 			.addQueryParameter("collectionVersion", Long.toString(Math.max(0L, collectionVersion)))
 			.addQueryParameter("limit", "100")
 			.build();
 		return call("GET", target, null, profile, SyncResponse.class);
+	}
+
+	TopTrumpsChallengeResponse createTopTrumpsChallenge(HostedProfile profile,
+		String targetMemberId) throws IOException
+	{
+		return call("POST", url(profile, "v1", "groups", profile.groupId,
+			"top-trumps", "challenges"), new TopTrumpsChallengeRequest(targetMemberId),
+			profile, TopTrumpsChallengeResponse.class);
+	}
+
+	void respondTopTrumpsChallenge(HostedProfile profile, String challengeId,
+		boolean accepted) throws IOException
+	{
+		call("POST", url(profile, "v1", "groups", profile.groupId,
+			"top-trumps", "challenges", challengeId, "response"),
+			new TopTrumpsResponseRequest(accepted), profile, EmptyResponse.class);
 	}
 
 	MemberCollectionsResponse getMemberCollections(HostedProfile profile) throws IOException
@@ -184,13 +208,13 @@ class HostedApiClient
 			|| !parsed.password().isEmpty() || parsed.querySize() > 0 || parsed.fragment() != null
 			|| !"/".equals(parsed.encodedPath()))
 		{
-			throw new IllegalArgumentException("Hosted server URL must be a server root such as https://example.workers.dev");
+			throw new IllegalArgumentException("Server URL must be a root such as https://example.workers.dev");
 		}
 		boolean local = "localhost".equals(parsed.host()) || "127.0.0.1".equals(parsed.host())
 			|| "::1".equals(parsed.host());
 		if (!"https".equals(parsed.scheme()) && !(local && "http".equals(parsed.scheme())))
 		{
-			throw new IllegalArgumentException("Hosted server URL must use HTTPS (HTTP is allowed only for localhost)");
+			throw new IllegalArgumentException("Server URL must use HTTPS (HTTP is allowed only for localhost)");
 		}
 		return parsed;
 	}
@@ -207,7 +231,7 @@ class HostedApiClient
 		Request.Builder request = new Request.Builder()
 			.url(url)
 			.header("Accept", "application/json")
-			.header("User-Agent", "Groupman-TCG/0.1.0");
+			.header("User-Agent", "Group-TCG/0.1.0");
 		if (setupKey != null && !setupKey.isEmpty())
 		{
 			request.header("X-Groupman-Setup-Key", setupKey);
@@ -303,6 +327,8 @@ class HostedApiClient
 		long nextCursor;
 		boolean hasMore;
 		List<PackEvent> events = Collections.emptyList();
+		long topTrumpsNextCursor;
+		List<TopTrumpsEvent> topTrumpsEvents = Collections.emptyList();
 		CollectionResult collection;
 	}
 
@@ -317,10 +343,31 @@ class HostedApiClient
 		String id;
 		String groupId;
 		String label;
+		String playerName;
+		String collectionMode;
 		String role;
 		String status;
 		String token;
 		boolean revoked;
+	}
+
+	static final class TopTrumpsChallengeResponse
+	{
+		String challengeId;
+		long expiresAt;
+	}
+
+	static final class TopTrumpsEvent
+	{
+		long sequence;
+		String challengeId;
+		String type;
+		long createdAt;
+		long expiresAt;
+		MemberRef challenger;
+		MemberRef challenged;
+		String challengerCard;
+		String challengedCard;
 	}
 
 	static final class Invite
@@ -333,6 +380,8 @@ class HostedApiClient
 	{
 		String id;
 		String label;
+		String playerName;
+		String collectionMode;
 		int cards;
 		int copies;
 		int foils;
@@ -420,11 +469,28 @@ class HostedApiClient
 	{
 		final String groupId;
 		final String inviteCode;
+		final String playerName;
+		final String collectionMode;
 
-		private JoinRequest(String groupId, String inviteCode)
+		private JoinRequest(String groupId, String inviteCode, String playerName,
+			String collectionMode)
 		{
 			this.groupId = groupId;
 			this.inviteCode = inviteCode;
+			this.playerName = playerName;
+			this.collectionMode = collectionMode;
+		}
+	}
+
+	private static final class MembershipRequest
+	{
+		final String playerName;
+		final String collectionMode;
+
+		private MembershipRequest(String playerName, String collectionMode)
+		{
+			this.playerName = playerName;
+			this.collectionMode = collectionMode;
 		}
 	}
 
@@ -432,13 +498,36 @@ class HostedApiClient
 	{
 		final String snapshotId;
 		final boolean complete;
+		final String collectionMode;
 		final List<CardInstanceUpload> instances;
 
-		private MemberCollectionRequest(String snapshotId, boolean complete, List<CardInstanceUpload> instances)
+		private MemberCollectionRequest(String snapshotId, boolean complete,
+			String collectionMode, List<CardInstanceUpload> instances)
 		{
 			this.snapshotId = snapshotId;
 			this.complete = complete;
+			this.collectionMode = collectionMode;
 			this.instances = new ArrayList<>(instances);
+		}
+	}
+
+	private static final class TopTrumpsChallengeRequest
+	{
+		final String targetMemberId;
+
+		private TopTrumpsChallengeRequest(String targetMemberId)
+		{
+			this.targetMemberId = targetMemberId;
+		}
+	}
+
+	private static final class TopTrumpsResponseRequest
+	{
+		final boolean accepted;
+
+		private TopTrumpsResponseRequest(boolean accepted)
+		{
+			this.accepted = accepted;
 		}
 	}
 

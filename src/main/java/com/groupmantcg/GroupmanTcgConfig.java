@@ -52,13 +52,13 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigSection(name = "Sailing", description = "Ship upgrades and salvage rules.", position = 8)
 	String sailingSection = "sailingSection";
 
-	@ConfigSection(name = "Top Trumps", description = "Consent-based card duels with verified group members.", position = 9)
+	@ConfigSection(name = "Top Trumps", description = "Consent-based card duels with approved server members.", position = 9)
 	String topTrumpsSection = "topTrumpsSection";
 
 	@ConfigItem(
 		keyName = "collectionMode",
 		name = "Collection mode",
-		description = "Solo uses only this account. Shared GIM permanently combines official group members' cards through RuneLite Party.",
+		description = "Solo uses only this account for unlocks. Shared permanently combines every approved server member's cards.",
 		section = collectionSection,
 		position = 0
 	)
@@ -82,7 +82,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "broadcastPackReveals",
 		name = "Share pack openings",
-		description = "Send card names, new-card status, and foil status to verified group members in the current RuneLite Party.",
+		description = "Upload card names, new-card status, and foil status to approved members on your private server.",
 		section = collectionSection,
 		position = 2
 	)
@@ -94,7 +94,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showPackReveals",
 		name = "Show group pack popups",
-		description = "Show a miniature card window when another verified group member opens a pack.",
+		description = "Show a miniature card window when another approved server member opens a pack.",
 		section = collectionSection,
 		position = 3
 	)
@@ -118,8 +118,8 @@ public interface GroupmanTcgConfig extends Config
 
 	@ConfigItem(
 		keyName = "hostedSyncEnabled",
-		name = "Hosted offline sync",
-		description = "Opt in to your group's self-hosted service. It receives Groupman credentials, private member labels, and TCG collection/pack data, never RuneScape names.",
+		name = "Connect to server",
+		description = "Opt in to your private Group TCG server. It receives your RuneScape display name, Group TCG credentials, collection mode, and TCG collection/pack data.",
 		section = collectionSection,
 		position = 5
 	)
@@ -130,8 +130,8 @@ public interface GroupmanTcgConfig extends Config
 
 	@ConfigItem(
 		keyName = "hostedServerUrl",
-		name = "Hosted server URL",
-		description = "Your group's self-hosted Cloudflare Worker URL. Every group member must enter the same URL before creating or joining.",
+		name = "Server URL",
+		description = "Your group's private Cloudflare Worker URL. Everyone on one server must enter the same URL before creating or joining.",
 		section = collectionSection,
 		position = 6
 	)
@@ -155,7 +155,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "topTrumpsEnabled",
 		name = "Enable Top Trumps",
-		description = "Add a Top Trumps option when right-clicking an online, verified group member and accept incoming challenges.",
+		description = "Challenge approved server members from the sidebar or their in-game right-click menu, and accept incoming challenges.",
 		section = topTrumpsSection,
 		position = 0
 	)

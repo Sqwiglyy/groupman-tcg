@@ -1,149 +1,198 @@
 package com.groupmantcg;
 
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.UUID;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
-import net.runelite.client.party.PartyMember;
-import net.runelite.client.party.PartyService;
-import net.runelite.client.party.WSClient;
 
-/** Runs consent, card draw, validation, and result state for live group Top Trumps duels. */
+/** Runs consent and result presentation for private-server Top Trumps duels. */
 @Singleton
 class TopTrumpsService
 {
 	static final String MENU_OPTION = "Top Trumps";
-	private static final int PROTOCOL = 1;
-	private static final long CHALLENGE_MILLIS = 30_000L;
-	private static final int MAX_SEEN_CHALLENGES = 32;
+	private static final int MAX_SEEN_EVENTS = 128;
+	private static final long MAX_EVENT_AGE_MILLIS = 120_000L;
 
 	private final Client client;
 	private final ClientThread clientThread;
 	private final GroupmanTcgConfig config;
-	private final SharedCollectionService collection;
+	private final HostedSyncService hosted;
 	private final CardVisualCatalog cards;
 	private final CardArtService cardArt;
-	private final PartyService partyService;
-	private final WSClient wsClient;
 	private final ChatboxPanelManager chatbox;
-	private final SecureRandom random = new SecureRandom();
-	private final Set<String> seenChallenges = new LinkedHashSet<>();
+	private final Set<String> seenEvents = new LinkedHashSet<>();
 
 	private boolean started;
-	private OutgoingChallenge outgoing;
 	private ResultView activeResult;
 
 	@Inject
 	TopTrumpsService(Client client, ClientThread clientThread, GroupmanTcgConfig config,
-		SharedCollectionService collection, CardVisualCatalog cards, CardArtService cardArt,
-		PartyService partyService, WSClient wsClient, ChatboxPanelManager chatbox)
+		HostedSyncService hosted, CardVisualCatalog cards, CardArtService cardArt,
+		ChatboxPanelManager chatbox)
 	{
 		this.client = client;
 		this.clientThread = clientThread;
 		this.config = config;
-		this.collection = collection;
+		this.hosted = hosted;
 		this.cards = cards;
 		this.cardArt = cardArt;
-		this.partyService = partyService;
-		this.wsClient = wsClient;
 		this.chatbox = chatbox;
 	}
 
 	void start()
 	{
 		started = true;
-		wsClient.registerMessage(TopTrumpsChallengeMessage.class);
-		wsClient.registerMessage(TopTrumpsResponseMessage.class);
-		wsClient.registerMessage(TopTrumpsResultMessage.class);
 	}
 
 	synchronized void stop()
 	{
 		started = false;
-		wsClient.unregisterMessage(TopTrumpsChallengeMessage.class);
-		wsClient.unregisterMessage(TopTrumpsResponseMessage.class);
-		wsClient.unregisterMessage(TopTrumpsResultMessage.class);
-		seenChallenges.clear();
-		outgoing = null;
+		seenEvents.clear();
 		activeResult = null;
 	}
 
 	boolean canChallenge(String playerName)
 	{
-		if (!started || !config.topTrumpsEnabled() || collection.cards().size() < 2)
+		if (!started || !config.topTrumpsEnabled())
 		{
 			return false;
 		}
-		PartyMember target = collection.verifiedPartyMember(playerName);
-		PartyMember local = partyService.getLocalMember();
-		return target != null && local != null && target.getMemberId() != local.getMemberId();
+		HostedSyncStatus.Member member = hosted.memberByPlayerName(playerName);
+		return member != null && hosted.canChallenge(member.id());
 	}
 
-	synchronized void challenge(String playerName)
+	void challenge(String playerName)
 	{
-		if (!canChallenge(playerName))
+		HostedSyncStatus.Member member = hosted.memberByPlayerName(playerName);
+		if (member == null)
 		{
-			gameMessage("That player is not an online, verified group member.");
+			gameMessage("That player is not an approved member of your Group TCG server.");
 			return;
 		}
-		long now = System.currentTimeMillis();
-		if (outgoing != null && outgoing.expiresAt > now)
+		challengeMember(member);
+	}
+
+	void challengeMember(HostedSyncStatus.Member member)
+	{
+		if (!started || !config.topTrumpsEnabled() || member == null || !hosted.canChallenge(member.id()))
 		{
-			gameMessage("Wait for your current Top Trumps challenge to finish.");
+			gameMessage("That player is not available for a server Top Trumps challenge.");
 			return;
 		}
-		PartyMember target = collection.verifiedPartyMember(playerName);
-		String groupKey = collection.activeGroupKey();
-		if (target == null || groupKey == null)
+		hosted.challengeMember(member.id(), error -> clientThread.invokeLater(() ->
 		{
-			gameMessage("Join the same RuneLite Party as your group member first.");
+			if (error == null)
+			{
+				gameMessage("Top Trumps challenge sent to " + displayName(member) + ".");
+			}
+			else
+			{
+				gameMessage(error);
+			}
+		}));
+	}
+
+	synchronized void hostedEvent(HostedApiClient.TopTrumpsEvent event)
+	{
+		if (!started || !config.topTrumpsEnabled() || event == null || event.challengeId == null
+			|| event.type == null || event.challenger == null || event.challenged == null
+			|| event.createdAt < System.currentTimeMillis() - MAX_EVENT_AGE_MILLIS
+			|| !rememberEvent(event.type + ':' + event.challengeId))
+		{
 			return;
 		}
-
-		String challengeId = UUID.randomUUID().toString();
-		long expiresAt = now + CHALLENGE_MILLIS;
-		outgoing = new OutgoingChallenge(challengeId, target.getMemberId(), target.getDisplayName(), expiresAt);
-		TopTrumpsChallengeMessage message = new TopTrumpsChallengeMessage();
-		message.setProtocol(PROTOCOL);
-		message.setGroupKey(groupKey);
-		message.setChallengeId(challengeId);
-		message.setTargetMemberId(target.getMemberId());
-		message.setExpiresAt(expiresAt);
-		partyService.send(message);
-		gameMessage("Top Trumps challenge sent to " + safeName(target.getDisplayName()) + ".");
+		String localMemberId = hosted.status().memberId();
+		if (localMemberId.isEmpty())
+		{
+			return;
+		}
+		switch (event.type)
+		{
+			case "challenge":
+				if (localMemberId.equals(event.challenged.id)
+					&& event.expiresAt >= System.currentTimeMillis())
+				{
+					showChallenge(event);
+				}
+				break;
+			case "declined":
+				if (localMemberId.equals(event.challenger.id))
+				{
+					gameMessage(displayName(event.challenged) + " declined your Top Trumps challenge.");
+				}
+				break;
+			case "result":
+				if (localMemberId.equals(event.challenger.id) || localMemberId.equals(event.challenged.id))
+				{
+					showResult(event);
+				}
+				break;
+			default:
+				break;
+		}
 	}
 
-	void challengeReceived(TopTrumpsChallengeMessage message)
+	private void showChallenge(HostedApiClient.TopTrumpsEvent event)
 	{
-		clientThread.invokeLater(() -> acceptChallenge(message));
+		String challenger = displayName(event.challenger);
+		chatbox.openTextMenuInput("Top Trumps challenge from " + challenger)
+			.option("Accept", () -> respond(event, true))
+			.option("Decline", () -> respond(event, false))
+			.build();
+		gameMessage(challenger + " challenged you to Top Trumps.");
 	}
 
-	void responseReceived(TopTrumpsResponseMessage message)
+	private void respond(HostedApiClient.TopTrumpsEvent event, boolean accepted)
 	{
-		clientThread.invokeLater(() -> acceptResponse(message));
+		if (event.expiresAt < System.currentTimeMillis())
+		{
+			gameMessage("That Top Trumps challenge has expired.");
+			return;
+		}
+		hosted.respondTopTrumps(event.challengeId, accepted, error -> clientThread.invokeLater(() ->
+		{
+			if (error == null)
+			{
+				gameMessage(accepted ? "Top Trumps challenge accepted." : "Top Trumps challenge declined.");
+			}
+			else
+			{
+				gameMessage(error);
+			}
+		}));
 	}
 
-	void resultReceived(TopTrumpsResultMessage message)
+	private void showResult(HostedApiClient.TopTrumpsEvent event)
 	{
-		clientThread.invokeLater(() -> acceptResult(message));
+		if (event.challengerCard == null || event.challengedCard == null)
+		{
+			return;
+		}
+		CardVisualCatalog.CardVisual challengerCard = cards.find(event.challengerCard);
+		CardVisualCatalog.CardVisual challengedCard = cards.find(event.challengedCard);
+		if (challengerCard == null || challengedCard == null)
+		{
+			return;
+		}
+		int winner = TopTrumpsRules.winner(challengerCard.score(), challengedCard.score(),
+			event.challengeId, challengerCard.displayName(), challengedCard.displayName());
+		boolean tieBreak = Double.compare(challengerCard.score(), challengedCard.score()) == 0;
+		long duration = Math.max(5, Math.min(20, config.topTrumpsDuration())) * 1_000L;
+		activeResult = new ResultView(event.challengeId, displayName(event.challenger),
+			displayName(event.challenged), challengerCard, challengedCard, winner, tieBreak,
+			System.currentTimeMillis() + duration);
+		cardArt.preload(Arrays.asList(challengerCard.displayName(), challengedCard.displayName()));
+		gameMessage(activeResult.winnerName() + " wins Top Trumps" + (tieBreak ? " on the tie-break" : "") + "!");
 	}
 
 	synchronized void onTick()
 	{
-		long now = System.currentTimeMillis();
-		if (outgoing != null && outgoing.expiresAt < now)
-		{
-			gameMessage("Your Top Trumps challenge to " + safeName(outgoing.targetName) + " expired.");
-			outgoing = null;
-		}
-		if (activeResult != null && activeResult.expiresAt < now)
+		if (activeResult != null && activeResult.expiresAt < System.currentTimeMillis())
 		{
 			activeResult = null;
 		}
@@ -160,169 +209,43 @@ class TopTrumpsService
 		return activeResult;
 	}
 
-	private synchronized void acceptChallenge(TopTrumpsChallengeMessage message)
+	private boolean rememberEvent(String eventKey)
 	{
-		PartyMember local = partyService.getLocalMember();
-		if (!started || !config.topTrumpsEnabled() || local == null || message == null
-			|| message.getProtocol() != PROTOCOL || message.getTargetMemberId() != local.getMemberId()
-			|| !validChallengeId(message.getChallengeId()) || !rememberChallenge(message.getChallengeId())
-			|| message.getExpiresAt() < System.currentTimeMillis()
-			|| message.getExpiresAt() > System.currentTimeMillis() + CHALLENGE_MILLIS + 5_000L)
-		{
-			return;
-		}
-		String challenger = collection.verifiedPartySenderName(message.getMemberId(), message.getGroupKey());
-		if (challenger == null)
-		{
-			return;
-		}
-
-		chatbox.openTextMenuInput("Top Trumps challenge from " + safeName(challenger))
-			.option("Accept", () -> respond(message, true))
-			.option("Decline", () -> respond(message, false))
-			.build();
-		gameMessage(safeName(challenger) + " challenged you to Top Trumps.");
-	}
-
-	private synchronized void respond(TopTrumpsChallengeMessage challenge, boolean accepted)
-	{
-		if (challenge.getExpiresAt() < System.currentTimeMillis() || collection.activeGroupKey() == null)
-		{
-			gameMessage("That Top Trumps challenge has expired.");
-			return;
-		}
-		TopTrumpsResponseMessage response = new TopTrumpsResponseMessage();
-		response.setProtocol(PROTOCOL);
-		response.setGroupKey(challenge.getGroupKey());
-		response.setChallengeId(challenge.getChallengeId());
-		response.setChallengerMemberId(challenge.getMemberId());
-		response.setAccepted(accepted);
-		partyService.send(response);
-		gameMessage(accepted ? "Top Trumps challenge accepted." : "Top Trumps challenge declined.");
-	}
-
-	private synchronized void acceptResponse(TopTrumpsResponseMessage message)
-	{
-		PartyMember local = partyService.getLocalMember();
-		if (!started || local == null || message == null || message.getProtocol() != PROTOCOL
-			|| message.getChallengerMemberId() != local.getMemberId() || outgoing == null
-			|| !outgoing.challengeId.equals(message.getChallengeId())
-			|| outgoing.expiresAt < System.currentTimeMillis()
-			|| outgoing.targetMemberId != message.getMemberId()
-			|| collection.verifiedPartySenderName(message.getMemberId(), message.getGroupKey()) == null)
-		{
-			return;
-		}
-		OutgoingChallenge acceptedChallenge = outgoing;
-		outgoing = null;
-		if (!message.isAccepted())
-		{
-			gameMessage(safeName(acceptedChallenge.targetName) + " declined your Top Trumps challenge.");
-			return;
-		}
-
-		TopTrumpsRules.Match match = TopTrumpsRules.draw(collection.cards(), cards, random,
-			acceptedChallenge.challengeId);
-		if (match == null)
-		{
-			gameMessage("The shared collection needs at least two valid cards for Top Trumps.");
-			return;
-		}
-		PartyMember target = partyService.getMemberById(acceptedChallenge.targetMemberId);
-		if (target == null)
-		{
-			gameMessage("The challenged player left the RuneLite Party.");
-			return;
-		}
-
-		TopTrumpsResultMessage result = new TopTrumpsResultMessage();
-		result.setProtocol(PROTOCOL);
-		result.setGroupKey(collection.activeGroupKey());
-		result.setChallengeId(acceptedChallenge.challengeId);
-		result.setChallengerMemberId(local.getMemberId());
-		result.setChallengedMemberId(target.getMemberId());
-		result.setChallengerCard(match.challengerCard().displayName());
-		result.setChallengedCard(match.challengedCard().displayName());
-		partyService.send(result);
-		showResult(result, local.getDisplayName(), target.getDisplayName());
-	}
-
-	private synchronized void acceptResult(TopTrumpsResultMessage message)
-	{
-		PartyMember local = partyService.getLocalMember();
-		if (!started || !config.topTrumpsEnabled() || local == null || message == null
-			|| message.getProtocol() != PROTOCOL || !validChallengeId(message.getChallengeId())
-			|| message.getMemberId() != message.getChallengerMemberId()
-			|| (local.getMemberId() != message.getChallengerMemberId()
-				&& local.getMemberId() != message.getChallengedMemberId())
-			|| collection.verifiedPartySenderName(message.getMemberId(), message.getGroupKey()) == null)
-		{
-			return;
-		}
-		PartyMember challenger = partyService.getMemberById(message.getChallengerMemberId());
-		PartyMember challenged = partyService.getMemberById(message.getChallengedMemberId());
-		if (challenger == null || challenged == null)
-		{
-			return;
-		}
-		showResult(message, challenger.getDisplayName(), challenged.getDisplayName());
-	}
-
-	private void showResult(TopTrumpsResultMessage result, String challengerName, String challengedName)
-	{
-		if (activeResult != null && activeResult.challengeId().equals(result.getChallengeId()))
-		{
-			return;
-		}
-		CardVisualCatalog.CardVisual challengerCard = cards.find(result.getChallengerCard());
-		CardVisualCatalog.CardVisual challengedCard = cards.find(result.getChallengedCard());
-		if (challengerCard == null || challengedCard == null
-			|| !collection.cards().contains(EntityCardCatalog.normalize(challengerCard.displayName()))
-			|| !collection.cards().contains(EntityCardCatalog.normalize(challengedCard.displayName())))
-		{
-			return;
-		}
-		int winner = TopTrumpsRules.winner(challengerCard.score(), challengedCard.score(),
-			result.getChallengeId(), challengerCard.displayName(), challengedCard.displayName());
-		boolean tieBreak = Double.compare(challengerCard.score(), challengedCard.score()) == 0;
-		long duration = Math.max(5, Math.min(20, config.topTrumpsDuration())) * 1_000L;
-		activeResult = new ResultView(result.getChallengeId(), safeName(challengerName), safeName(challengedName),
-			challengerCard, challengedCard, winner, tieBreak, System.currentTimeMillis() + duration);
-		cardArt.preload(Arrays.asList(challengerCard.displayName(), challengedCard.displayName()));
-		gameMessage(activeResult.winnerName() + " wins Top Trumps" + (tieBreak ? " on the tie-break" : "") + "!");
-	}
-
-	private boolean rememberChallenge(String challengeId)
-	{
-		if (!seenChallenges.add(challengeId))
+		if (!seenEvents.add(eventKey))
 		{
 			return false;
 		}
-		while (seenChallenges.size() > MAX_SEEN_CHALLENGES)
+		while (seenEvents.size() > MAX_SEEN_EVENTS)
 		{
-			seenChallenges.remove(seenChallenges.iterator().next());
+			seenEvents.remove(seenEvents.iterator().next());
 		}
 		return true;
 	}
 
 	private void gameMessage(String message)
 	{
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "[Groupman TCG] " + message, null);
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "[Group TCG] " + message, null);
 	}
 
-	private static boolean validChallengeId(String value)
+	private static String displayName(HostedSyncStatus.Member member)
 	{
-		return value != null && value.length() >= 8 && value.length() <= 64;
+		return safeName(member.playerName().isEmpty() ? member.label() : member.playerName());
+	}
+
+	private static String displayName(HostedApiClient.MemberRef member)
+	{
+		return safeName(member.playerName == null || member.playerName.trim().isEmpty()
+			? member.label : member.playerName);
 	}
 
 	private static String safeName(String value)
 	{
 		if (value == null)
 		{
-			return "Group member";
+			return "Server member";
 		}
 		String clean = value.trim();
-		return clean.isEmpty() ? "Group member" : clean.substring(0, Math.min(12, clean.length()));
+		return clean.isEmpty() ? "Server member" : clean.substring(0, Math.min(16, clean.length()));
 	}
 
 	static final class ResultView
@@ -359,21 +282,5 @@ class TopTrumpsService
 		boolean tieBreak() { return tieBreak; }
 		long expiresAt() { return expiresAt; }
 		String winnerName() { return winner == 0 ? challengerName : challengedName; }
-	}
-
-	private static final class OutgoingChallenge
-	{
-		private final String challengeId;
-		private final long targetMemberId;
-		private final String targetName;
-		private final long expiresAt;
-
-		private OutgoingChallenge(String challengeId, long targetMemberId, String targetName, long expiresAt)
-		{
-			this.challengeId = challengeId;
-			this.targetMemberId = targetMemberId;
-			this.targetName = targetName;
-			this.expiresAt = expiresAt;
-		}
 	}
 }

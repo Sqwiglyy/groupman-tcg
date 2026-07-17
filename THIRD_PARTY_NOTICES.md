@@ -31,7 +31,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-The OSRS TCG project is maintained by Azderi. Groupman TCG interoperates
+The OSRS TCG project is maintained by Azderi. Group TCG interoperates
 read-only with OSRS TCG's profile-scoped state. The bundled
 `osrs_tcg_cards.json` is an unmodified snapshot of OSRS TCG's public
 `Card.json` at commit `ffb5290402853d3254e803f2661a40602216ad9d`.
@@ -67,5 +67,5 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Old School RuneScape and RuneScape are trademarks of Jagex Limited. Groupman
-TCG is a fan project and is not endorsed by Jagex, RuneLite, or OSRS TCG.
+Old School RuneScape and RuneScape are trademarks of Jagex Limited. Group TCG
+is a fan project and is not endorsed by Jagex, RuneLite, or OSRS TCG.

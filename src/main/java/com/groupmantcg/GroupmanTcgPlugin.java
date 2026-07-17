@@ -22,9 +22,7 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.PartyChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
-import net.runelite.client.party.events.UserJoin;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -34,9 +32,9 @@ import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Groupman TCG",
-	description = "Multiplayer Bronzeman restrictions powered by a permanent shared OSRS TCG collection",
-	tags = {"tcg", "group", "ironman", "hardcore", "bronzeman", "restriction", "multiplayer"}
+	name = "Group TCG",
+	description = "Solo or private-server Bronzeman restrictions powered by OSRS TCG collections",
+	tags = {"tcg", "group", "bronzeman", "restriction", "multiplayer", "solo"}
 )
 public class GroupmanTcgPlugin extends Plugin
 {
@@ -88,9 +86,9 @@ public class GroupmanTcgPlugin extends Plugin
 		hostedSync.start();
 		packReveals.start();
 		topTrumps.start();
-		panel = new GroupmanTcgPanel(collection, hostedSync, monsters, items);
+		panel = new GroupmanTcgPanel(collection, hostedSync, topTrumps, monsters, items);
 		navigation = NavigationButton.builder()
-			.tooltip("Groupman TCG")
+			.tooltip("Group TCG")
 			.icon(createIcon())
 			.priority(7)
 			.panel(panel)
@@ -101,7 +99,7 @@ public class GroupmanTcgPlugin extends Plugin
 		overlayManager.add(lockedWidgetItemOverlay);
 		overlayManager.add(packRevealOverlay);
 		overlayManager.add(topTrumpsOverlay);
-		log.info("Groupman TCG started with {} NPCs and {} items", monsters.size(), items.size());
+		log.info("Group TCG started with {} NPCs and {} items", monsters.size(), items.size());
 	}
 
 	@Override
@@ -164,6 +162,7 @@ public class GroupmanTcgPlugin extends Plugin
 			&& "collectionMode".equals(event.getKey()))
 		{
 			collection.contextChanged();
+			hostedSync.collectionModeChanged();
 		}
 		else if (GroupmanTcgConfig.GROUP.equals(event.getGroup())
 			&& "hostedSyncEnabled".equals(event.getKey()))
@@ -178,48 +177,6 @@ public class GroupmanTcgPlugin extends Plugin
 		collection.profileChanged();
 		packReveals.profileChanged();
 		hostedSync.profileChanged();
-	}
-
-	@Subscribe
-	public void onPartyChanged(PartyChanged event)
-	{
-		collection.partyChanged();
-	}
-
-	@Subscribe
-	public void onUserJoin(UserJoin event)
-	{
-		collection.contextChanged();
-	}
-
-	@Subscribe
-	public void onGroupCollectionSnapshotMessage(GroupCollectionSnapshotMessage message)
-	{
-		collection.snapshotReceived(message);
-	}
-
-	@Subscribe
-	public void onGroupPackRevealMessage(GroupPackRevealMessage message)
-	{
-		packReveals.messageReceived(message);
-	}
-
-	@Subscribe
-	public void onTopTrumpsChallengeMessage(TopTrumpsChallengeMessage message)
-	{
-		topTrumps.challengeReceived(message);
-	}
-
-	@Subscribe
-	public void onTopTrumpsResponseMessage(TopTrumpsResponseMessage message)
-	{
-		topTrumps.responseReceived(message);
-	}
-
-	@Subscribe
-	public void onTopTrumpsResultMessage(TopTrumpsResultMessage message)
-	{
-		topTrumps.resultReceived(message);
 	}
 
 	@Subscribe

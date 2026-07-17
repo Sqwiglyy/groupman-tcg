@@ -12,16 +12,11 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import net.runelite.client.callback.ClientThread;
-import net.runelite.client.party.PartyMember;
-import net.runelite.client.party.PartyService;
-import net.runelite.client.party.WSClient;
 
 /** Detects local pack transactions and presents verified remote reveals. */
 @Singleton
 class GroupPackRevealService
 {
-	private static final int PROTOCOL = 1;
 	private static final int MAX_PULLS = 5;
 	private static final int MAX_QUEUED_REVEALS = 4;
 	private static final long COLLECTION_SETTLE_MILLIS = 2_000L;
@@ -30,13 +25,9 @@ class GroupPackRevealService
 
 	private final GroupmanTcgConfig config;
 	private final LocalCollection localCollection;
-	private final SharedCollectionService sharedCollection;
 	private final HostedSyncService hostedSync;
 	private final CardVisualCatalog visualCatalog;
 	private final CardArtService cardArt;
-	private final PartyService partyService;
-	private final WSClient wsClient;
-	private final ClientThread clientThread;
 
 	private final Deque<QueuedReveal> queue = new ArrayDeque<>();
 	private final LinkedHashMap<String, Boolean> hostedEvents = new LinkedHashMap<>();
@@ -49,32 +40,24 @@ class GroupPackRevealService
 
 	@Inject
 	GroupPackRevealService(GroupmanTcgConfig config, LocalCollection localCollection,
-		SharedCollectionService sharedCollection, HostedSyncService hostedSync,
-		CardVisualCatalog visualCatalog, CardArtService cardArt,
-		PartyService partyService, WSClient wsClient, ClientThread clientThread)
+		HostedSyncService hostedSync, CardVisualCatalog visualCatalog, CardArtService cardArt)
 	{
 		this.config = config;
 		this.localCollection = localCollection;
-		this.sharedCollection = sharedCollection;
 		this.hostedSync = hostedSync;
 		this.visualCatalog = visualCatalog;
 		this.cardArt = cardArt;
-		this.partyService = partyService;
-		this.wsClient = wsClient;
-		this.clientThread = clientThread;
 	}
 
 	void start()
 	{
 		started = true;
-		wsClient.registerMessage(GroupPackRevealMessage.class);
 		prime(localCollection.snapshot());
 	}
 
 	synchronized void stop()
 	{
 		started = false;
-		wsClient.unregisterMessage(GroupPackRevealMessage.class);
 		queue.clear();
 		hostedEvents.clear();
 		active = null;
@@ -98,11 +81,6 @@ class GroupPackRevealService
 		active = null;
 		rebaseline = true;
 		pendingReadAt = System.currentTimeMillis() + 500L;
-	}
-
-	void messageReceived(GroupPackRevealMessage message)
-	{
-		clientThread.invokeLater(() -> accept(message));
 	}
 
 	synchronized void onTick()
@@ -153,8 +131,10 @@ class GroupPackRevealService
 		{
 			if (!pulls.isEmpty() && pulls.size() <= MAX_PULLS)
 			{
-				hostedSync.queueLocalPack(pulls);
-				broadcast(pulls);
+				if (config.broadcastPackReveals())
+				{
+					hostedSync.queueLocalPack(pulls);
+				}
 			}
 		}
 		previousOpenedPacks = snapshot.openedPacks();
@@ -203,72 +183,6 @@ class GroupPackRevealService
 			packs.add(pulls);
 		}
 		return packs;
-	}
-
-	private void broadcast(List<Pull> pulls)
-	{
-		if (!config.broadcastPackReveals())
-		{
-			return;
-		}
-		String groupKey = sharedCollection.activeGroupKey();
-		if (groupKey == null)
-		{
-			return;
-		}
-
-		List<GroupPackRevealMessage.CardPull> payload = new ArrayList<>(pulls.size());
-		for (Pull pull : pulls)
-		{
-			GroupPackRevealMessage.CardPull row = new GroupPackRevealMessage.CardPull();
-			row.setCardName(pull.cardName());
-			row.setFoil(pull.foil());
-			row.setNewForCollection(pull.newForCollection());
-			payload.add(row);
-		}
-		GroupPackRevealMessage message = new GroupPackRevealMessage();
-		message.setProtocol(PROTOCOL);
-		message.setGroupKey(groupKey);
-		message.setPulls(payload);
-		partyService.send(message);
-	}
-
-	private synchronized void accept(GroupPackRevealMessage message)
-	{
-		if (!started || !config.showPackReveals() || message == null || message.getProtocol() != PROTOCOL
-			|| message.getPulls() == null || message.getPulls().isEmpty() || message.getPulls().size() > MAX_PULLS)
-		{
-			return;
-		}
-		PartyMember localMember = partyService.getLocalMember();
-		if (localMember != null && localMember.getMemberId() == message.getMemberId())
-		{
-			return;
-		}
-		String opener = sharedCollection.verifiedPartySenderName(message.getMemberId(), message.getGroupKey());
-		if (opener == null)
-		{
-			return;
-		}
-
-		List<Pull> safePulls = new ArrayList<>(message.getPulls().size());
-		List<String> artNames = new ArrayList<>(message.getPulls().size());
-		for (GroupPackRevealMessage.CardPull row : message.getPulls())
-		{
-			if (row == null || row.getCardName() == null || row.getCardName().trim().length() > 100)
-			{
-				return;
-			}
-			CardVisualCatalog.CardVisual card = visualCatalog.find(row.getCardName());
-			if (card == null)
-			{
-				return;
-			}
-			safePulls.add(new Pull(card.displayName(), row.isFoil(), row.isNewForCollection()));
-			artNames.add(card.displayName());
-		}
-
-		enqueue(opener, safePulls, artNames);
 	}
 
 	synchronized void hostedReveal(String eventId, String opener, List<Pull> pulls)

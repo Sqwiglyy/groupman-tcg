@@ -4,19 +4,19 @@ final class GroupSyncStatus
 {
 	private final boolean groupMode;
 	private final boolean active;
-	private final boolean inParty;
+	private final boolean connected;
 	private final String groupName;
 	private final int cards;
 	private final int syncedMembers;
 	private final int rosterMembers;
 	private final String detail;
 
-	GroupSyncStatus(boolean groupMode, boolean active, boolean inParty, String groupName,
+	GroupSyncStatus(boolean groupMode, boolean active, boolean connected, String groupName,
 		int cards, int syncedMembers, int rosterMembers, String detail)
 	{
 		this.groupMode = groupMode;
 		this.active = active;
-		this.inParty = inParty;
+		this.connected = connected;
 		this.groupName = groupName;
 		this.cards = cards;
 		this.syncedMembers = syncedMembers;
@@ -34,9 +34,9 @@ final class GroupSyncStatus
 		return active;
 	}
 
-	boolean isInParty()
+	boolean isConnected()
 	{
-		return inParty;
+		return connected;
 	}
 
 	String getGroupName()
@@ -64,4 +64,3 @@ final class GroupSyncStatus
 		return detail;
 	}
 }
-

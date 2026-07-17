@@ -1,58 +1,48 @@
 # RuneLite review brief
 
-Use this note for pre-clearance in the RuneLite development Discord and as the
-basis of the eventual Plugin Hub pull request. Do not submit until the manual
-release checks in `PLUGIN_HUB_CHECKLIST.md` pass.
+Use this note for pre-clearance in the RuneLite development Discord and for the
+eventual Plugin Hub pull request. Do not submit until `PLUGIN_HUB_CHECKLIST.md`
+passes.
 
 ## Pre-clearance message
 
-> I maintain Groupman TCG, a group-first multiplayer companion to OSRS TCG.
-> I know Bronzeman TCG is already listed and want to avoid Plugin Hub
-> fragmentation. The overlap is card-based interaction locking. The distinct
-> purpose is official GIM/HCGIM multiplayer: a grow-only shared collection,
-> individual member collection views, live RuneLite Party synchronization,
-> group pack popups, consent-based Top Trumps, and optional identity-free
-> offline synchronization through a self-hosted one-group Worker. Hosted sync
-> and Wiki artwork are disabled by default, the server URL is blank, and no
-> RuneScape/GIM name or original-puller name is sent to the Worker. Would this
-> group-specific scope be acceptable as a separate Plugin Hub entry, or should
-> I approach the Bronzeman TCG maintainer about contributing the multiplayer
-> features there instead?
+> I maintain Group TCG, a solo/private-group multiplayer companion to OSRS
+> TCG. The overlap with Bronzeman TCG is card-based honour-mode interaction
+> locking. Group TCG adds configurable solo or server-shared collections,
+> individual contribution views, pack popups, and consent-based Top Trumps.
+> It does not require GIM or RuneLite Party. Multiplayer is an explicit opt-in
+> to a user-supplied, privately hosted Cloudflare Worker; no public server URL
+> is bundled. The Worker stores the RuneScape display name needed for owner
+> approval and right-click matching, plus TCG data, but receives no Jagex
+> credentials/session, account ID, inventory, bank, location, stats, clan, or
+> chat data. Would this scope be acceptable as a separate Plugin Hub entry?
 
 ## Reviewer-facing boundaries
 
 - Java 11 and Plugin Hub `standard` build with no custom runtime dependency.
-- Reads the local OSRS TCG collection; it does not alter OSRS TCG.
-- Restrictions are self-imposed menu-click consumption. Examine, Drop, Destroy,
-  bank deposits, and LMS safety behavior are documented and configurable.
-- RuneLite Party provides live group transport only between the user's current
-  party members.
-- Hosted sync is an explicit opt-in and accepts HTTPS Worker URLs; localhost is
-  accepted only for development.
-- The hosted API receives opaque identifiers, generated private labels, hashed
-  credentials, card names, foil/debug state, timestamps, and pack contents. It
-  does not receive RuneScape names, GIM names, raw OSRS TCG instance IDs, bank
-  contents, inventory contents, chat, location, gear, stats, or credentials.
-- Each self-hosted Worker is claimable by one group and limited to five active
-  members. First creation additionally requires a private encrypted Worker
-  setup key; the plugin sends it only in that create request and never saves it.
-- Optional Wiki artwork loading is off by default and limited to the fixed OSRS
-  Wiki image origin.
-- Card faces use an attributed adaptation of OSRS TCG's BSD-licensed renderer,
-  card-back, lock badge, and standard pack art from its current Plugin Hub
-  commit. Resources are namespaced and do not access the other plugin's jar.
+- Reads profile-scoped OSRS TCG state and does not alter the OSRS TCG plugin.
+- Restrictions are self-imposed menu-click consumption with documented gaps.
+- Multiplayer requires an explicit HTTPS server URL and opt-in. HTTP is
+  accepted only for loopback development.
+- The private API receives RuneScape display names, random identifiers,
+  selected collection mode, hashed Group TCG credentials, card names,
+  foil/debug state, timestamps, pack events, and Top Trumps events.
+- It never receives Jagex credentials/session data, account IDs, bank PINs,
+  inventory, bank, equipment, location, world, stats, XP, clan data, or chat.
+- Raw OSRS TCG instance IDs are replaced with opaque SHA-256-derived IDs.
+- Each self-hosted Worker is claimable once. First creation requires a private
+  encrypted setup key which the plugin sends once and never saves.
+- Optional Wiki artwork is off by default and limited to fixed OSRS Wiki URLs.
+- Card faces use attributed BSD-licensed OSRS TCG code/assets.
 
 ## Draft Plugin Hub description
 
-Groupman TCG is an opt-in multiplayer Bronzeman challenge driven by cards in
-the locally installed OSRS TCG plugin. Official GIM/HCGIM members permanently
-combine unlocks, can inspect individual contributions, see queued group pack
-reveals, and play consent-based Top Trumps. Card-locked NPCs and items receive
-clear visual treatment and prohibited interactions are consumed with an
-explanatory chat message.
+Group TCG is an opt-in Bronzeman-style challenge driven by cards in OSRS TCG.
+Choose a personal collection or permanently share unlocks with approved
+members of a private server. Browse individual contributions, see queued pack
+reveals, and challenge server friends to consent-based Top Trumps from the
+sidebar or in-game right-click menu. Locked NPCs and items receive clear visual
+treatment and blocked actions show the required card.
 
-Live multiplayer uses RuneLite Party. Optional offline synchronization uses a
-group-owned Cloudflare Worker whose URL is blank by default. The protocol uses
-opaque identifiers and generated member labels; it does not upload RuneScape
-or GIM names. Optional Wiki card artwork is also disabled by default. Full data
-flows are documented in `PRIVACY.md`.
+The optional multiplayer Worker is self-hosted and has no bundled public URL.
+Its documented privacy boundary is in `PRIVACY.md`.

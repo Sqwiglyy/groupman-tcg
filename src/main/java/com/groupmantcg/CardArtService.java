@@ -31,7 +31,7 @@ import okhttp3.Response;
 class CardArtService
 {
 	private static final int MEMORY_ENTRIES = 64;
-	private static final String USER_AGENT = "Groupman-TCG RuneLite plugin";
+	private static final String USER_AGENT = "Group-TCG RuneLite plugin";
 
 	private final CardVisualCatalog catalog;
 	private final GroupmanTcgConfig config;
