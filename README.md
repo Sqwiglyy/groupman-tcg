@@ -80,8 +80,9 @@ but must not claim that it can distinguish a direct pull from a later trade.
 
 ## Hosted group setup
 
-1. Decide whether to use the default Sqwiglyy service or deploy the companion
-   Worker to one teammate's Cloudflare account.
+1. Decide whether to use the default Sqwiglyy service or
+   [deploy the companion Worker](https://github.com/Sqwiglyy/groupman-tcg-server)
+   to one teammate's Cloudflare account.
 2. If self-hosting, every teammate sets **Hosted server URL** to the same
    `https://...workers.dev` address before joining or creating the group.
 3. Log into the Group Ironman account and open the Groupman TCG sidebar.
