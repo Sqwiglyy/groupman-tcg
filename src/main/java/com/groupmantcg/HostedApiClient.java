@@ -19,7 +19,7 @@ import okhttp3.ResponseBody;
 @Singleton
 class HostedApiClient
 {
-	static final String PRODUCTION_URL = "https://groupman-tcg-api.sqwiglyy.workers.dev";
+	static final String LEGACY_SQWIGLYY_URL = "https://groupman-tcg-api.sqwiglyy.workers.dev";
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
 	private final OkHttpClient http;

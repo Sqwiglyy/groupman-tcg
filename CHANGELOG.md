@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Added an optional self-hosted Cloudflare Worker URL while retaining
-  Sqwiglyy's public service as the default.
+- Made a group-owned, self-hosted Cloudflare Worker URL mandatory for new
+  hosted groups; no public server is configured by default.
 - Bound each profile token to the server that issued it so changing the global
   URL cannot redirect an existing credential.
 

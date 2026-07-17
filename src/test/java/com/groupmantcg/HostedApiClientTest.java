@@ -158,6 +158,16 @@ public class HostedApiClientTest
 		}
 	}
 
+	@Test
+	public void leavesHostedServerUnconfiguredByDefault()
+	{
+		GroupmanTcgConfig config = new GroupmanTcgConfig()
+		{
+		};
+
+		assertEquals("", config.hostedServerUrl());
+	}
+
 	private static HostedProfile profile()
 	{
 		HostedProfile profile = new HostedProfile();

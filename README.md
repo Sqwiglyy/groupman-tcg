@@ -38,9 +38,9 @@ in-game GIM roster.
 - Solo or official Group Ironman collection modes.
 - Grow-only, profile-scoped group unlock cache.
 - Compact RuneLite Party snapshots with catalog compatibility checks.
-- Authenticated Cloudflare sync through Sqwiglyy's public service by default,
-  with an optional self-hosted Worker URL for groups that want to own their
-  database, durable unlocks, provenance, and offline pack history.
+- Authenticated Cloudflare sync through a group-owned, self-hosted Worker for
+  durable unlocks, provenance, and offline pack history. No public server is
+  configured by default.
 - Sidebar collection browser with a shared view and one cached collection per
   verified group member. Shared search results identify the current owner;
   hovering the owner shows locally available copy, foil, original-puller, and
@@ -80,10 +80,11 @@ but must not claim that it can distinguish a direct pull from a later trade.
 
 ## Hosted group setup
 
-1. Decide whether to use the default Sqwiglyy service or
-   [deploy the companion Worker](https://github.com/Sqwiglyy/groupman-tcg-server)
-   to one teammate's Cloudflare account.
-2. If self-hosting, every teammate sets **Hosted server URL** to the same
+1. One teammate
+   [deploys the companion Worker](https://github.com/Sqwiglyy/groupman-tcg-server)
+   to their Cloudflare account and shares only its `https://...workers.dev`
+   root URL.
+2. Every teammate sets **Hosted server URL** to that same
    `https://...workers.dev` address before joining or creating the group.
 3. Log into the Group Ironman account and open the Groupman TCG sidebar.
 4. One teammate chooses **Create hosted group**, then copies the displayed

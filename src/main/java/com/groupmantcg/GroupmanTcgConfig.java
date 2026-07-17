@@ -131,13 +131,13 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "hostedServerUrl",
 		name = "Hosted server URL",
-		description = "Cloudflare Worker URL used when creating or joining a new hosted group. Leave the default to use Sqwiglyy's public service.",
+		description = "Your group's self-hosted Cloudflare Worker URL. Every group member must enter the same URL before creating or joining.",
 		section = collectionSection,
 		position = 6
 	)
 	default String hostedServerUrl()
 	{
-		return HostedApiClient.PRODUCTION_URL;
+		return "";
 	}
 
 	@ConfigItem(

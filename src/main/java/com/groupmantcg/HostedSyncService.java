@@ -712,7 +712,7 @@ class HostedSyncService
 		if (profile != null && (profile.serverUrl == null || profile.serverUrl.trim().isEmpty()))
 		{
 			// Profiles created before custom endpoints existed always used the public Sqwiglyy service.
-			profile.serverUrl = HostedApiClient.PRODUCTION_URL;
+			profile.serverUrl = HostedApiClient.LEGACY_SQWIGLYY_URL;
 			profileStore.save(profile);
 		}
 		// Re-request the grow-only union once per client/profile session so hosted state can rebuild a missing local cache.
