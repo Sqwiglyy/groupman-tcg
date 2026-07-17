@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rank approved private-server members by the combined OSRS TCG score of their
+  unique cards, with collection size shown alongside each leaderboard entry.
 - Complete the automated and two-account RuneLite Plugin Hub launch checks.
 - Replace internal launch paperwork with a shorter fork-and-run guide.
 - Open the selected shared or player collection in a full, resizable OSRS TCG-style

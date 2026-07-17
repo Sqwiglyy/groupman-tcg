@@ -76,6 +76,8 @@ public class GroupmanTcgPlugin extends Plugin
 	private TopTrumpsOverlay topTrumpsOverlay;
 	@Inject
 	private CollectionAlbumManager collectionAlbums;
+	@Inject
+	private CardVisualCatalog cardVisuals;
 
 	private GroupmanTcgPanel panel;
 	private NavigationButton navigation;
@@ -88,7 +90,8 @@ public class GroupmanTcgPlugin extends Plugin
 		hostedSync.start();
 		packReveals.start();
 		topTrumps.start();
-		panel = new GroupmanTcgPanel(collection, hostedSync, topTrumps, collectionAlbums, monsters, items);
+		panel = new GroupmanTcgPanel(collection, hostedSync, topTrumps, collectionAlbums,
+			monsters, items, cardVisuals);
 		navigation = NavigationButton.builder()
 			.tooltip("Group TCG")
 			.icon(createIcon())

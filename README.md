@@ -50,6 +50,9 @@ and lives in the separate server repository linked below.
 - See the 20 latest cards pulled by the selected player, including duplicates
   and foils.
 - Open any group member's collection in the full OSRS TCG-style album.
+- Compare approved server members on a collection leaderboard ranked by the
+  combined OSRS TCG score of their unique cards; duplicate copies do not add
+  leaderboard points.
 - Share delayed pack-opening popups with friends, including missed openings
   after reconnecting.
 - Challenge approved members to consent-based Top Trumps from the sidebar or

@@ -9,8 +9,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.swing.BorderFactory;
@@ -43,17 +44,19 @@ class GroupmanTcgPanel extends PluginPanel
 	private final CollectionAlbumManager albums;
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
+	private final CardVisualCatalog visuals;
 	private final IconTextField search = new IconTextField();
 	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
 	private final JLabel hostedStatus = muted("Loading private server...");
 	private final JPanel hostedActions = body();
+	private final JPanel leaderboard = body();
 	private final JPanel results = body();
 	private boolean updatingSelector;
 
 	GroupmanTcgPanel(SharedCollectionService collection, HostedSyncService hosted,
 		TopTrumpsService topTrumps, CollectionAlbumManager albums,
-		MonsterCardCatalog monsters, ItemCardCatalog items)
+		MonsterCardCatalog monsters, ItemCardCatalog items, CardVisualCatalog visuals)
 	{
 		this.collection = collection;
 		this.hosted = hosted;
@@ -61,6 +64,7 @@ class GroupmanTcgPanel extends PluginPanel
 		this.albums = albums;
 		this.monsters = monsters;
 		this.items = items;
+		this.visuals = visuals;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
@@ -108,6 +112,8 @@ class GroupmanTcgPanel extends PluginPanel
 		add(header("Private server"));
 		add(hostedStatus);
 		add(hostedActions);
+		add(header("Server leaderboard"));
+		add(leaderboard);
 		add(header("Card lookup"));
 		add(results);
 		refresh();
@@ -147,8 +153,96 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 		syncStatus.setToolTipText(status.getDetail());
 		refreshHosted();
+		refreshLeaderboard();
 		refreshCollectionChoices();
 		refreshSearch();
+	}
+
+	private void refreshLeaderboard()
+	{
+		leaderboard.removeAll();
+		HostedSyncStatus current = hosted.status();
+		if (!current.linked())
+		{
+			leaderboard.add(muted("Join a private server to compare collections."));
+		}
+		else if (current.state() == HostedSyncStatus.State.WAITING_APPROVAL)
+		{
+			leaderboard.add(muted("Leaderboard available after server approval."));
+		}
+		else
+		{
+			List<CollectionLeaderboard.Entry> entries = CollectionLeaderboard.rank(
+				collection.memberCollections(), visuals);
+			if (entries.isEmpty())
+			{
+				leaderboard.add(muted("Waiting for server collections to sync."));
+			}
+			else
+			{
+				for (int index = 0; index < entries.size(); index++)
+				{
+					leaderboard.add(leaderboardRow(index + 1, entries.get(index)));
+					if (index + 1 < entries.size())
+					{
+						leaderboard.add(Box.createVerticalStrut(3));
+					}
+				}
+			}
+		}
+		leaderboard.revalidate();
+		leaderboard.repaint();
+	}
+
+	private JPanel leaderboardRow(int rank, CollectionLeaderboard.Entry entry)
+	{
+		JPanel row = body();
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 5));
+		JPanel heading = new JPanel(new BorderLayout());
+		heading.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		JLabel player = new JLabel("#" + rank + "  " + entry.playerName());
+		player.setForeground(Color.WHITE);
+		heading.add(player, BorderLayout.CENTER);
+		JLabel points = new JLabel(compactPoints(entry.points()) + " pts");
+		points.setForeground(ColorScheme.BRAND_ORANGE);
+		heading.add(points, BorderLayout.EAST);
+		row.add(heading);
+		JLabel cards = muted(entry.uniqueCards() + " unique card" + (entry.uniqueCards() == 1 ? "" : "s"));
+		cards.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+		row.add(cards);
+		String tooltip = String.format(Locale.UK, "%,d points from %,d unique OSRS TCG cards. "
+			+ "Duplicate copies do not add points.", entry.points(), entry.uniqueCards());
+		row.setToolTipText(tooltip);
+		heading.setToolTipText(tooltip);
+		player.setToolTipText(tooltip);
+		points.setToolTipText(tooltip);
+		cards.setToolTipText(tooltip);
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+		return row;
+	}
+
+	private static String compactPoints(long points)
+	{
+		if (points < 1_000L)
+		{
+			return Long.toString(points);
+		}
+		if (points < 1_000_000L)
+		{
+			return compactNumber(points / 1_000.0d) + "k";
+		}
+		if (points < 1_000_000_000L)
+		{
+			return compactNumber(points / 1_000_000.0d) + "m";
+		}
+		return compactNumber(points / 1_000_000_000.0d) + "b";
+	}
+
+	private static String compactNumber(double value)
+	{
+		String formatted = String.format(Locale.ROOT, value >= 100.0d ? "%.0f" : "%.1f", value);
+		return formatted.endsWith(".0") ? formatted.substring(0, formatted.length() - 2) : formatted;
 	}
 
 	private void refreshHosted()
