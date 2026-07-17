@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0-rc.1 - 2026-07-17
 
 - Made a group-owned, self-hosted Cloudflare Worker URL mandatory for new
   hosted groups; no public server is configured by default.

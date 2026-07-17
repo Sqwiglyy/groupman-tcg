@@ -18,12 +18,26 @@ RuneLite review steps that cannot be proven by unit tests.
 - [x] Hosted backend and artwork network features are opt-in.
 - [x] Hosted API payloads omit RuneScape/GIM identity and original-puller names.
 - [x] Plugin tests run without the removed MockWebServer dependency.
+- [x] GitHub Actions rebuilds with Java 11 and rejects tracked production
+  Worker URLs.
+- [x] Private security-reporting instructions and a RuneLite pre-clearance brief
+  are included.
+- [x] Public `main` and release-tag history starts from a privacy-clean release
+  candidate; the superseded development branches were removed after private
+  Git bundles were verified.
+
+## Completed deployment checks
+
+- [x] Confirmed the production D1 database contained zero groups, members,
+  packs, or card instances before migration.
+- [x] Exported and checksummed an off-OneDrive pre-v2 database backup.
+- [x] Applied migrations 0003 and 0004 and deployed Worker API v2 with
+  observability disabled.
+- [x] Verified `/health` reports v2 and the final production schema contains no
+  RuneScape display-name or original-puller columns.
 
 ## Manual release checks
 
-- [ ] Merge the matching plugin and server privacy pull requests.
-- [ ] Back up the existing D1 database and deploy server v2, which applies the
-  irreversible privacy-redaction migration.
 - [ ] Install the exact release commit on two real GIM/HCGIM RuneLite profiles.
 - [ ] Verify fresh install with no existing Groupman configuration.
 - [ ] Verify OSRS TCG detection and card unlocks after restart.
