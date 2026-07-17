@@ -3,6 +3,8 @@ package com.groupmantcg;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
@@ -10,10 +12,13 @@ import java.util.TreeMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JComboBox;
+import javax.swing.JButton;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import net.runelite.client.ui.ColorScheme;
@@ -24,17 +29,22 @@ class GroupmanTcgPanel extends PluginPanel
 {
 	private static final int MAX_RESULTS = 20;
 	private final SharedCollectionService collection;
+	private final HostedSyncService hosted;
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
 	private final IconTextField search = new IconTextField();
 	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
+	private final JLabel hostedStatus = muted("Loading hosted sync...");
+	private final JPanel hostedActions = body();
 	private final JPanel results = body();
 	private boolean updatingSelector;
 
-	GroupmanTcgPanel(SharedCollectionService collection, MonsterCardCatalog monsters, ItemCardCatalog items)
+	GroupmanTcgPanel(SharedCollectionService collection, HostedSyncService hosted,
+		MonsterCardCatalog monsters, ItemCardCatalog items)
 	{
 		this.collection = collection;
+		this.hosted = hosted;
 		this.monsters = monsters;
 		this.items = items;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -79,6 +89,9 @@ class GroupmanTcgPanel extends PluginPanel
 		add(collectionSelector);
 		add(header("Group status"));
 		add(syncStatus);
+		add(header("Offline server"));
+		add(hostedStatus);
+		add(hostedActions);
 		add(header("Card lookup"));
 		add(results);
 		refresh();
@@ -107,8 +120,188 @@ class GroupmanTcgPanel extends PluginPanel
 				? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.BRAND_ORANGE);
 		}
 		syncStatus.setToolTipText(status.getDetail());
+		refreshHosted();
 		refreshCollectionChoices();
 		refreshSearch();
+	}
+
+	private void refreshHosted()
+	{
+		HostedSyncStatus current = hosted.status();
+		hostedStatus.setText(current.detail());
+		hostedStatus.setToolTipText(current.linked()
+			? current.groupName() + " · " + current.groupId() : current.detail());
+		switch (current.state())
+		{
+			case ONLINE:
+				hostedStatus.setForeground(ColorScheme.PROGRESS_COMPLETE_COLOR);
+				break;
+			case SYNCING:
+			case WAITING_APPROVAL:
+				hostedStatus.setForeground(ColorScheme.BRAND_ORANGE);
+				break;
+			case ERROR:
+			case WRONG_PROFILE:
+				hostedStatus.setForeground(ColorScheme.PROGRESS_ERROR_COLOR);
+				break;
+			default:
+				hostedStatus.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		}
+
+		hostedActions.removeAll();
+		if (current.state() == HostedSyncStatus.State.NOT_LINKED)
+		{
+			hostedActions.add(actionButton("Create hosted group", this::createHostedGroup));
+			hostedActions.add(Box.createVerticalStrut(4));
+			hostedActions.add(actionButton("Join hosted group", this::joinHostedGroup));
+		}
+		else if (current.linked())
+		{
+			JLabel id = muted("Group ID: " + abbreviated(current.groupId()));
+			id.setToolTipText(current.groupId());
+			hostedActions.add(id);
+			if (current.owner())
+			{
+				if (!current.inviteCode().isEmpty())
+				{
+					JLabel invite = muted("Invite: " + current.inviteCode());
+					invite.setToolTipText("Share this only with your GIM teammates.");
+					hostedActions.add(invite);
+					hostedActions.add(actionButton("Copy join details", this::copyJoinDetails));
+				}
+				hostedActions.add(Box.createVerticalStrut(4));
+				hostedActions.add(actionButton(current.inviteCode().isEmpty()
+					? "Create invite" : "Rotate invite", this::rotateInvite));
+				for (HostedSyncStatus.Member member : current.members())
+				{
+					if (member.pending())
+					{
+						hostedActions.add(Box.createVerticalStrut(4));
+						if (collection.isVerifiedRosterMember(member.rsn()))
+						{
+							hostedActions.add(actionButton("Approve " + member.rsn(), () -> approve(member)));
+						}
+						else
+						{
+							JLabel warning = muted(member.rsn() + " is not on the GIM roster");
+							warning.setForeground(ColorScheme.PROGRESS_ERROR_COLOR);
+							hostedActions.add(warning);
+							hostedActions.add(actionButton("Reject " + member.rsn(), () -> revoke(member)));
+						}
+					}
+					else if (!member.revoked() && "member".equals(member.role()))
+					{
+						hostedActions.add(Box.createVerticalStrut(4));
+						hostedActions.add(actionButton("Revoke " + member.rsn(), () -> revoke(member)));
+					}
+				}
+			}
+			if (current.state() == HostedSyncStatus.State.WAITING_APPROVAL
+				|| current.state() == HostedSyncStatus.State.ERROR)
+			{
+				hostedActions.add(Box.createVerticalStrut(4));
+				hostedActions.add(actionButton("Sync now", hosted::syncNow));
+			}
+			hostedActions.add(Box.createVerticalStrut(4));
+			hostedActions.add(actionButton("Disconnect this profile", this::disconnectHosted));
+		}
+		hostedActions.revalidate();
+		hostedActions.repaint();
+	}
+
+	private void createHostedGroup()
+	{
+		JTextField name = new JTextField(hosted.suggestedGroupName());
+		int choice = JOptionPane.showConfirmDialog(this, name, "Hosted group name",
+			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+		if (choice == JOptionPane.OK_OPTION)
+		{
+			hosted.createGroup(name.getText(), this::actionFinished);
+		}
+	}
+
+	private void joinHostedGroup()
+	{
+		JTextField groupId = new JTextField();
+		JTextField invite = new JTextField();
+		JPanel form = body();
+		form.add(new JLabel("Group ID"));
+		form.add(groupId);
+		form.add(Box.createVerticalStrut(6));
+		form.add(new JLabel("Invite code"));
+		form.add(invite);
+		int choice = JOptionPane.showConfirmDialog(this, form,
+			"Join as " + (hosted.currentRsn().isEmpty() ? "current account" : hosted.currentRsn()),
+			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+		if (choice == JOptionPane.OK_OPTION)
+		{
+			hosted.joinGroup(groupId.getText(), invite.getText(), this::actionFinished);
+		}
+	}
+
+	private void approve(HostedSyncStatus.Member member)
+	{
+		hosted.approveMember(member.id(), this::actionFinished);
+	}
+
+	private void revoke(HostedSyncStatus.Member member)
+	{
+		int choice = JOptionPane.showConfirmDialog(this,
+			"Remove " + member.rsn() + " from hosted sync? Their permanent unlocks remain.",
+			"Revoke hosted member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+		if (choice == JOptionPane.YES_OPTION)
+		{
+			hosted.revokeMember(member.id(), this::actionFinished);
+		}
+	}
+
+	private void rotateInvite()
+	{
+		hosted.rotateInvite(this::actionFinished);
+	}
+
+	private void disconnectHosted()
+	{
+		int choice = JOptionPane.showConfirmDialog(this,
+			"Remove this profile's hosted token? Shared unlocks remain cached.",
+			"Disconnect hosted group", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+		if (choice == JOptionPane.YES_OPTION)
+		{
+			hosted.disconnect();
+			refresh();
+		}
+	}
+
+	private void copyJoinDetails()
+	{
+		HostedSyncStatus current = hosted.status();
+		String text = "Groupman TCG group ID: " + current.groupId()
+			+ System.lineSeparator() + "Invite code: " + current.inviteCode();
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+		hostedStatus.setText("Join details copied");
+	}
+
+	private void actionFinished(String error)
+	{
+		if (error != null)
+		{
+			JOptionPane.showMessageDialog(this, error, "Hosted sync", JOptionPane.ERROR_MESSAGE);
+		}
+		refresh();
+	}
+
+	private static JButton actionButton(String text, Runnable action)
+	{
+		JButton button = new JButton(text);
+		button.setAlignmentX(LEFT_ALIGNMENT);
+		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+		button.addActionListener(event -> action.run());
+		return button;
+	}
+
+	private static String abbreviated(String value)
+	{
+		return value == null || value.length() <= 12 ? value : value.substring(0, 8) + "...";
 	}
 
 	private void refreshCollectionChoices()

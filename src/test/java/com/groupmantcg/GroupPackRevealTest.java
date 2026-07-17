@@ -63,6 +63,7 @@ public class GroupPackRevealTest
 		GroupmanTcgConfig config = new GroupmanTcgConfig() { };
 		assertTrue(config.broadcastPackReveals());
 		assertTrue(config.showPackReveals());
+		assertTrue(config.hostedSyncEnabled());
 		assertEquals(8, config.packRevealDuration());
 	}
 

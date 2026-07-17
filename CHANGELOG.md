@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add profile-scoped hosted group creation, invite joining, roster-gated owner
+  approval, and token-free sidebar management.
+- Upload exact personal collection snapshots and pack events to the Sqwiglyy
+  Cloudflare API, with retry-safe event IDs and grow-only shared unlocks.
+- Download missed pack reveals, individual member collections, and remote pull
+  provenance after reconnecting.
 - Add a shared/personal collection selector with one collection per verified
   group member.
 - Cache individual member ownership offline and identify owners in shared card

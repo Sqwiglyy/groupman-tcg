@@ -31,6 +31,7 @@ class GroupPackRevealService
 	private final GroupmanTcgConfig config;
 	private final LocalCollection localCollection;
 	private final SharedCollectionService sharedCollection;
+	private final HostedSyncService hostedSync;
 	private final CardVisualCatalog visualCatalog;
 	private final CardArtService cardArt;
 	private final PartyService partyService;
@@ -38,6 +39,7 @@ class GroupPackRevealService
 	private final ClientThread clientThread;
 
 	private final Deque<QueuedReveal> queue = new ArrayDeque<>();
+	private final LinkedHashMap<String, Boolean> hostedEvents = new LinkedHashMap<>();
 	private Map<String, LocalCollection.CardInstance> previousInstances = Collections.emptyMap();
 	private long previousOpenedPacks;
 	private long pendingReadAt = -1L;
@@ -47,12 +49,14 @@ class GroupPackRevealService
 
 	@Inject
 	GroupPackRevealService(GroupmanTcgConfig config, LocalCollection localCollection,
-		SharedCollectionService sharedCollection, CardVisualCatalog visualCatalog, CardArtService cardArt,
+		SharedCollectionService sharedCollection, HostedSyncService hostedSync,
+		CardVisualCatalog visualCatalog, CardArtService cardArt,
 		PartyService partyService, WSClient wsClient, ClientThread clientThread)
 	{
 		this.config = config;
 		this.localCollection = localCollection;
 		this.sharedCollection = sharedCollection;
+		this.hostedSync = hostedSync;
 		this.visualCatalog = visualCatalog;
 		this.cardArt = cardArt;
 		this.partyService = partyService;
@@ -72,6 +76,7 @@ class GroupPackRevealService
 		started = false;
 		wsClient.unregisterMessage(GroupPackRevealMessage.class);
 		queue.clear();
+		hostedEvents.clear();
 		active = null;
 		pendingReadAt = -1L;
 		previousInstances = Collections.emptyMap();
@@ -89,6 +94,7 @@ class GroupPackRevealService
 	synchronized void profileChanged()
 	{
 		queue.clear();
+		hostedEvents.clear();
 		active = null;
 		rebaseline = true;
 		pendingReadAt = System.currentTimeMillis() + 500L;
@@ -147,6 +153,7 @@ class GroupPackRevealService
 		{
 			if (!pulls.isEmpty() && pulls.size() <= MAX_PULLS)
 			{
+				hostedSync.queueLocalPack(pulls);
 				broadcast(pulls);
 			}
 		}
@@ -187,7 +194,7 @@ class GroupPackRevealService
 			for (LocalCollection.CardInstance instance : instances)
 			{
 				pulls.add(new Pull(instance.displayName(), instance.foil(),
-					!namesBeforePack.contains(instance.normalizedName())));
+					!namesBeforePack.contains(instance.normalizedName()), instance.id(), instance.pulledAt()));
 			}
 			for (LocalCollection.CardInstance instance : instances)
 			{
@@ -261,6 +268,43 @@ class GroupPackRevealService
 			artNames.add(card.displayName());
 		}
 
+		enqueue(opener, safePulls, artNames);
+	}
+
+	synchronized void hostedReveal(String eventId, String opener, List<Pull> pulls)
+	{
+		if (!started || !config.showPackReveals() || eventId == null || eventId.trim().isEmpty()
+			|| opener == null || opener.trim().isEmpty() || pulls == null || pulls.isEmpty()
+			|| pulls.size() > MAX_PULLS || hostedEvents.containsKey(eventId))
+		{
+			return;
+		}
+		List<Pull> safePulls = new ArrayList<>(pulls.size());
+		List<String> artNames = new ArrayList<>(pulls.size());
+		for (Pull pull : pulls)
+		{
+			if (pull == null || pull.cardName() == null)
+			{
+				return;
+			}
+			CardVisualCatalog.CardVisual card = visualCatalog.find(pull.cardName());
+			if (card == null)
+			{
+				return;
+			}
+			safePulls.add(new Pull(card.displayName(), pull.foil(), pull.newForCollection()));
+			artNames.add(card.displayName());
+		}
+		hostedEvents.put(eventId, Boolean.TRUE);
+		while (hostedEvents.size() > 256)
+		{
+			hostedEvents.remove(hostedEvents.keySet().iterator().next());
+		}
+		enqueue(opener.trim(), safePulls, artNames);
+	}
+
+	private void enqueue(String opener, List<Pull> safePulls, List<String> artNames)
+	{
 		cardArt.preload(artNames);
 		if (queue.size() >= MAX_QUEUED_REVEALS)
 		{
@@ -318,17 +362,28 @@ class GroupPackRevealService
 		private final String cardName;
 		private final boolean foil;
 		private final boolean newForCollection;
+		private final String sourceInstanceId;
+		private final long pulledAt;
 
 		Pull(String cardName, boolean foil, boolean newForCollection)
+		{
+			this(cardName, foil, newForCollection, "", 0L);
+		}
+
+		Pull(String cardName, boolean foil, boolean newForCollection, String sourceInstanceId, long pulledAt)
 		{
 			this.cardName = cardName;
 			this.foil = foil;
 			this.newForCollection = newForCollection;
+			this.sourceInstanceId = sourceInstanceId == null ? "" : sourceInstanceId;
+			this.pulledAt = pulledAt;
 		}
 
 		String cardName() { return cardName; }
 		boolean foil() { return foil; }
 		boolean newForCollection() { return newForCollection; }
+		String sourceInstanceId() { return sourceInstanceId; }
+		long pulledAt() { return pulledAt; }
 	}
 
 	static final class RevealView

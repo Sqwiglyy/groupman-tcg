@@ -69,6 +69,8 @@ public class GroupmanTcgPlugin extends Plugin
 	@Inject
 	private GroupPackRevealService packReveals;
 	@Inject
+	private HostedSyncService hostedSync;
+	@Inject
 	private GroupPackRevealOverlay packRevealOverlay;
 	@Inject
 	private TopTrumpsService topTrumps;
@@ -83,9 +85,10 @@ public class GroupmanTcgPlugin extends Plugin
 	protected void startUp()
 	{
 		collection.start();
+		hostedSync.start();
 		packReveals.start();
 		topTrumps.start();
-		panel = new GroupmanTcgPanel(collection, monsters, items);
+		panel = new GroupmanTcgPanel(collection, hostedSync, monsters, items);
 		navigation = NavigationButton.builder()
 			.tooltip("Groupman TCG")
 			.icon(createIcon())
@@ -106,6 +109,7 @@ public class GroupmanTcgPlugin extends Plugin
 	{
 		packReveals.stop();
 		topTrumps.stop();
+		hostedSync.stop();
 		collection.stop();
 		overlayManager.remove(lockedNpcOverlay);
 		overlayManager.remove(lockedGroundItemOverlay);
@@ -125,6 +129,7 @@ public class GroupmanTcgPlugin extends Plugin
 	{
 		collection.onTick();
 		packReveals.onTick();
+		hostedSync.onTick();
 		topTrumps.onTick();
 		if (panel != null && ++panelTicks % 5 == 0)
 		{
@@ -143,6 +148,7 @@ public class GroupmanTcgPlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		collection.contextChanged();
+		hostedSync.contextChanged();
 	}
 
 	@Subscribe
@@ -152,11 +158,17 @@ public class GroupmanTcgPlugin extends Plugin
 		{
 			collection.localCollectionChanged();
 			packReveals.localStateChanged();
+			hostedSync.localCollectionChanged();
 		}
 		else if (GroupmanTcgConfig.GROUP.equals(event.getGroup())
 			&& "collectionMode".equals(event.getKey()))
 		{
 			collection.contextChanged();
+		}
+		else if (GroupmanTcgConfig.GROUP.equals(event.getGroup())
+			&& "hostedSyncEnabled".equals(event.getKey()))
+		{
+			hostedSync.contextChanged();
 		}
 	}
 
@@ -165,6 +177,7 @@ public class GroupmanTcgPlugin extends Plugin
 	{
 		collection.profileChanged();
 		packReveals.profileChanged();
+		hostedSync.profileChanged();
 	}
 
 	@Subscribe

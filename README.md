@@ -38,6 +38,9 @@ in-game GIM roster.
 - Solo or official Group Ironman collection modes.
 - Grow-only, profile-scoped group unlock cache.
 - Compact RuneLite Party snapshots with catalog compatibility checks.
+- Authenticated Cloudflare sync at
+  `https://groupman-tcg-api.sqwiglyy.workers.dev` for durable unlocks,
+  individual collections, provenance, and pack reveals missed while offline.
 - Sidebar collection browser with a shared view and one cached collection per
   verified group member. Shared search results identify the current owner;
   hovering the owner shows locally available copy, foil, original-puller, and
@@ -56,14 +59,13 @@ in-game GIM roster.
 Items and NPCs with no OSRS TCG card are never restricted. Enforcement is
 client-side and therefore remains an honour-system challenge.
 
-The current plugin build uses RuneLite Party as its live transport. At least two
-members must be online together in the same RuneLite Party for new unlocks and
-individual member collections to cross between their local caches; those
-collections remain visible offline after they have synchronised once, and a
-member carrying the combined cache can relay the shared unlocks later.
-Pack-opening popups are also live-only and are accepted only from RuneLite
-Party members on the official in-game GIM roster. Sharing and receiving pack
-reveals can be disabled independently, and the popup duration is configurable.
+RuneLite Party remains the low-latency live transport. The optional hosted sync
+stores approved members' unlocks and card-instance provenance so everyone
+converges after reconnecting even when no two members were online together.
+Pack reveals received through RuneLite Party appear immediately; authenticated
+server history supplies reveals missed while offline. Both paths are filtered
+against the official in-game GIM roster. Sharing and receiving pack reveals can
+be disabled independently, and the popup duration is configurable.
 Top Trumps challenges are likewise live-only, targeted to one verified group
 member, and require explicit acceptance before cards are drawn.
 Card artwork is loaded on demand from the OSRS Wiki URLs in OSRS TCG's public
@@ -75,6 +77,25 @@ pull time. It does not retain the exact booster type or RuneScape activity that
 awarded the pack, and a traded card retains its original pull metadata. The
 companion server schema preserves those fields and labels debug-granted cards,
 but must not claim that it can distinguish a direct pull from a later trade.
+
+## Hosted group setup
+
+1. Log into the Group Ironman account and open the Groupman TCG sidebar.
+2. One teammate chooses **Create hosted group**, then copies the displayed
+   group ID and invite code.
+3. Each teammate chooses **Join hosted group** and enters those two values.
+4. The owner approves only names that the plugin confirms are on the official
+   GIM roster.
+
+The bearer token is stored in that RuneScape profile's local RuneLite
+configuration and is never displayed in the sidebar or written to plugin logs.
+It is not a Jagex credential. Disconnecting removes the local token while
+leaving the grow-only unlock cache intact.
+
+The service receives the RuneScape display name, hosted group membership, OSRS
+TCG card instance IDs/names, foil state, original-puller label, pull timestamp,
+and pack contents. It does not receive a Jagex password, bank PIN, chat, game
+session token, or general gameplay telemetry.
 
 Production restrictions consume RuneLite menu clicks. Keyboard shortcuts that
 confirm a make-X interface without producing a menu click remain honour-system.

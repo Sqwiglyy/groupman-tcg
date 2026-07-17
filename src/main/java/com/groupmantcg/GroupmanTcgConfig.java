@@ -117,6 +117,18 @@ public interface GroupmanTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "hostedSyncEnabled",
+		name = "Hosted offline sync",
+		description = "Use the authenticated Sqwiglyy Cloudflare service for durable unlocks, individual collections, and missed pack reveals.",
+		section = collectionSection,
+		position = 5
+	)
+	default boolean hostedSyncEnabled()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "topTrumpsEnabled",
 		name = "Enable Top Trumps",
 		description = "Add a Top Trumps option when right-clicking an online, verified group member and accept incoming challenges.",
