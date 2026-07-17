@@ -53,6 +53,15 @@ public class GroupPackRevealTest
 	}
 
 	@Test
+	public void remoteRevealWaitsFifteenSecondsAfterServerReceipt()
+	{
+		long openedAt = 10_000L;
+		long receivedAt = 12_000L;
+		assertEquals(27_000L, GroupPackRevealService.remoteRevealNotBefore(
+			openedAt, receivedAt, 13_000L));
+	}
+
+	@Test
 	public void loadsOfficialCardArtworkMetadata()
 	{
 		CardVisualCatalog catalog = new CardVisualCatalog(new Gson());

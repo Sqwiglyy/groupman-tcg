@@ -70,7 +70,8 @@ public class HostedApiClientTest
 	public void authenticatesSyncAndParsesMissedPacks() throws Exception
 	{
 		server.enqueue(200, "{\"nextCursor\":9,\"hasMore\":false,\"events\":[{"
-			+ "\"sequence\":9,\"eventId\":\"pack_9\",\"member\":{\"id\":\"other\",\"label\":\"Member 123456\"},"
+			+ "\"sequence\":9,\"eventId\":\"pack_9\",\"openedAt\":10000,\"receivedAt\":12000,"
+			+ "\"member\":{\"id\":\"other\",\"label\":\"Member 123456\",\"playerName\":\"Friend\"},"
 			+ "\"cards\":[{\"name\":\"Great Olm\",\"foil\":true,\"isNew\":true}]}],"
 			+ "\"collection\":{\"version\":4,\"changed\":true,\"unlocks\":[\"Great Olm\"]}}");
 
@@ -78,6 +79,8 @@ public class HostedApiClientTest
 		assertEquals(9L, response.nextCursor);
 		assertFalse(response.hasMore);
 		assertEquals("Member 123456", response.events.get(0).member.label);
+		assertEquals("Friend", response.events.get(0).member.playerName);
+		assertEquals(12_000L, response.events.get(0).receivedAt);
 		assertEquals("Great Olm", response.events.get(0).cards.get(0).name);
 
 		CapturedRequest request = server.takeRequest();

@@ -401,6 +401,7 @@ class HostedApiClient
 		long sequence;
 		String eventId;
 		long openedAt;
+		long receivedAt;
 		MemberRef member;
 		List<CardPullResult> cards = Collections.emptyList();
 	}

@@ -758,7 +758,10 @@ class HostedSyncService
 						pulls.add(new GroupPackRevealService.Pull(card.name, card.foil, card.isNew));
 					}
 				}
-				packRevealService.get().hostedReveal(event.eventId, event.member.label, pulls);
+				String opener = event.member.playerName == null || event.member.playerName.trim().isEmpty()
+					? event.member.label : event.member.playerName.trim();
+				packRevealService.get().hostedReveal(event.eventId, opener, pulls,
+					event.openedAt, event.receivedAt);
 			}
 			for (HostedApiClient.TopTrumpsEvent event : topTrumpsEvents)
 			{

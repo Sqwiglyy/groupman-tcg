@@ -81,7 +81,8 @@ does not move a group or its database.
 - Shared unlocks, individual collections, and provenance are maintained in D1
   and downloaded after reconnecting.
 - Pack openings are uploaded when **Share pack openings** is enabled. Other
-  online members normally receive the miniature popup on the next server poll.
+  online members receive the miniature popup no sooner than 15 seconds after
+  the server receives the opening; the opener does not receive their own popup.
 - Missed pack openings replay after a player comes back online.
 - Top Trumps challenges travel through the private server, not RuneLite Party.
 - Challenge a friend from their button in the sidebar even when they are not

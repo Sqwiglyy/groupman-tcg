@@ -21,6 +21,7 @@ class GroupPackRevealService
 	private static final int MAX_QUEUED_REVEALS = 4;
 	private static final long COLLECTION_SETTLE_MILLIS = 2_000L;
 	private static final long ART_WARMUP_MILLIS = 750L;
+	static final long REMOTE_REVEAL_DELAY_MILLIS = 15_000L;
 	private static final long MAX_RECENT_PULL_AGE_MILLIS = 120_000L;
 
 	private final GroupmanTcgConfig config;
@@ -185,7 +186,8 @@ class GroupPackRevealService
 		return packs;
 	}
 
-	synchronized void hostedReveal(String eventId, String opener, List<Pull> pulls)
+	synchronized void hostedReveal(String eventId, String opener, List<Pull> pulls,
+		long openedAt, long receivedAt)
 	{
 		if (!started || !config.showPackReveals() || eventId == null || eventId.trim().isEmpty()
 			|| opener == null || opener.trim().isEmpty() || pulls == null || pulls.isEmpty()
@@ -214,17 +216,24 @@ class GroupPackRevealService
 		{
 			hostedEvents.remove(hostedEvents.keySet().iterator().next());
 		}
-		enqueue(opener.trim(), safePulls, artNames);
+		enqueue(opener.trim(), safePulls, artNames,
+			remoteRevealNotBefore(openedAt, receivedAt, System.currentTimeMillis()));
 	}
 
-	private void enqueue(String opener, List<Pull> safePulls, List<String> artNames)
+	static long remoteRevealNotBefore(long openedAt, long receivedAt, long now)
+	{
+		long reliableEventTime = receivedAt > 0L ? receivedAt : (openedAt > 0L ? openedAt : now);
+		return Math.max(reliableEventTime, openedAt) + REMOTE_REVEAL_DELAY_MILLIS;
+	}
+
+	private void enqueue(String opener, List<Pull> safePulls, List<String> artNames, long notBefore)
 	{
 		cardArt.preload(artNames);
 		if (queue.size() >= MAX_QUEUED_REVEALS)
 		{
 			queue.removeFirst();
 		}
-		queue.addLast(new QueuedReveal(opener, safePulls));
+		queue.addLast(new QueuedReveal(opener, safePulls, notBefore));
 		if (active == null)
 		{
 			activateNext(System.currentTimeMillis());
@@ -245,12 +254,17 @@ class GroupPackRevealService
 
 	private void activateNext(long now)
 	{
-		QueuedReveal next = queue.pollFirst();
+		QueuedReveal next = queue.peekFirst();
 		if (next == null)
 		{
 			return;
 		}
-		long visibleAt = now + ART_WARMUP_MILLIS;
+		if (now < next.notBefore)
+		{
+			return;
+		}
+		queue.removeFirst();
+		long visibleAt = Math.max(next.notBefore, now + ART_WARMUP_MILLIS);
 		long durationMillis = Math.max(3, Math.min(15, config.packRevealDuration())) * 1_000L;
 		active = new RevealView(next.opener, next.pulls, visibleAt, visibleAt + durationMillis);
 	}
@@ -331,11 +345,13 @@ class GroupPackRevealService
 	{
 		private final String opener;
 		private final List<Pull> pulls;
+		private final long notBefore;
 
-		private QueuedReveal(String opener, List<Pull> pulls)
+		private QueuedReveal(String opener, List<Pull> pulls, long notBefore)
 		{
 			this.opener = opener;
 			this.pulls = new ArrayList<>(pulls);
+			this.notBefore = notBefore;
 		}
 	}
 }

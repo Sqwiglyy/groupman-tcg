@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Delay remote pack previews until at least 15 seconds after the server receives
+  the opening, while continuing to suppress the preview on the opener's client.
+- Show the opener's approved RuneScape display name in remote pack previews.
+
 ## v0.1.0-rc.4 - 2026-07-17
 
 - Rename the user-facing plugin from Groupman TCG to Group TCG while retaining
