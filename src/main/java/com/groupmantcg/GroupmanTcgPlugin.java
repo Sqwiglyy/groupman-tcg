@@ -33,7 +33,7 @@ import net.runelite.client.util.Text;
 @Slf4j
 @PluginDescriptor(
 	name = "Group TCG",
-	description = "Solo or private-server Bronzeman restrictions powered by OSRS TCG collections",
+	description = "Use OSRS TCG cards as solo or shared Bronzeman unlocks",
 	tags = {"tcg", "group", "bronzeman", "restriction", "multiplayer", "solo"}
 )
 public class GroupmanTcgPlugin extends Plugin

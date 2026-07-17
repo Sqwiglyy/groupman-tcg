@@ -52,13 +52,13 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigSection(name = "Sailing", description = "Ship upgrades and salvage rules.", position = 8)
 	String sailingSection = "sailingSection";
 
-	@ConfigSection(name = "Top Trumps", description = "Consent-based card duels with approved server members.", position = 9)
+	@ConfigSection(name = "Top Trumps", description = "Card battles with people on your group server.", position = 9)
 	String topTrumpsSection = "topTrumpsSection";
 
 	@ConfigItem(
 		keyName = "collectionMode",
 		name = "Collection mode",
-		description = "Solo uses only this account for unlocks. Shared permanently combines every approved server member's cards.",
+		description = "Solo uses only your cards. Shared uses cards owned by anyone on your server, and shared unlocks are not removed later.",
 		section = collectionSection,
 		position = 0
 	)
@@ -82,7 +82,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "broadcastPackReveals",
 		name = "Share pack openings",
-		description = "Upload card names, new-card status, and foil status to approved members on your private server.",
+		description = "Send your pack results to the group server so friends can see them.",
 		section = collectionSection,
 		position = 2
 	)
@@ -94,7 +94,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showPackReveals",
 		name = "Show group pack popups",
-		description = "Show a miniature card window when another approved server member opens a pack.",
+		description = "Show a small card window when someone on your server opens a pack.",
 		section = collectionSection,
 		position = 3
 	)
@@ -119,7 +119,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "hostedSyncEnabled",
 		name = "Connect to server",
-		description = "Opt in to your private Group TCG server. It receives your RuneScape display name, Group TCG credentials, collection mode, and TCG collection/pack data.",
+		description = "Connect this RuneLite profile to your group server. The server receives your display name, Group TCG token, collection choice, cards, and pack events.",
 		section = collectionSection,
 		position = 5
 	)
@@ -131,7 +131,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "hostedServerUrl",
 		name = "Server URL",
-		description = "Your group's private Cloudflare Worker URL. Everyone on one server must enter the same URL before creating or joining.",
+		description = "The Cloudflare Worker URL from your group host. Everyone must use the same URL.",
 		section = collectionSection,
 		position = 6
 	)
@@ -143,7 +143,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "downloadCardArt",
 		name = "Download card artwork",
-		description = "Opt in to loading artwork from the OSRS Wiki. This reveals your IP address and the requested image URLs to the Wiki, but sends no RuneScape account data.",
+		description = "Load card images from the OSRS Wiki. The Wiki sees your IP address and requested image URL, but no RuneScape account data.",
 		section = collectionSection,
 		position = 7
 	)
@@ -155,7 +155,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "topTrumpsEnabled",
 		name = "Enable Top Trumps",
-		description = "Challenge approved server members from the sidebar or their in-game right-click menu, and accept incoming challenges.",
+		description = "Challenge people on your server from the sidebar or their in-game right-click menu.",
 		section = topTrumpsSection,
 		position = 0
 	)
@@ -240,7 +240,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "itemExemptions",
 		name = "Item exemptions",
-		description = "Comma-separated item names ignored by the general item lock. Specialist skill requirements still apply.",
+		description = "Comma-separated items that the general item lock should ignore. Skill-specific rules still apply.",
 		section = restrictionSection,
 		position = 5
 	)

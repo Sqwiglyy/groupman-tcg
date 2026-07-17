@@ -48,7 +48,7 @@ class GroupmanTcgPanel extends PluginPanel
 	private final IconTextField search = new IconTextField();
 	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
-	private final JLabel hostedStatus = muted("Loading private server...");
+	private final JLabel hostedStatus = muted("Loading group server...");
 	private final JPanel hostedActions = body();
 	private final JPanel leaderboard = body();
 	private final JPanel results = body();
@@ -109,7 +109,7 @@ class GroupmanTcgPanel extends PluginPanel
 		add(actionButton("Open full collection", this::openFullCollection));
 		add(header("Group status"));
 		add(syncStatus);
-		add(header("Private server"));
+		add(header("Group server"));
 		add(hostedStatus);
 		add(hostedActions);
 		add(header("Server leaderboard"));
@@ -164,11 +164,11 @@ class GroupmanTcgPanel extends PluginPanel
 		HostedSyncStatus current = hosted.status();
 		if (!current.linked())
 		{
-			leaderboard.add(muted("Join a private server to compare collections."));
+			leaderboard.add(muted("Join a group server to compare collections."));
 		}
 		else if (current.state() == HostedSyncStatus.State.WAITING_APPROVAL)
 		{
-			leaderboard.add(muted("Leaderboard available after server approval."));
+			leaderboard.add(muted("The leaderboard appears after the host approves you."));
 		}
 		else
 		{
@@ -176,7 +176,7 @@ class GroupmanTcgPanel extends PluginPanel
 				collection.memberCollections(), visuals);
 			if (entries.isEmpty())
 			{
-				leaderboard.add(muted("Waiting for server collections to sync."));
+				leaderboard.add(muted("Waiting for group collections to sync."));
 			}
 			else
 			{
@@ -271,25 +271,21 @@ class GroupmanTcgPanel extends PluginPanel
 		hostedActions.removeAll();
 		if (current.state() == HostedSyncStatus.State.NOT_LINKED)
 		{
-			hostedActions.add(actionButton("Create private group", this::createHostedGroup));
+			hostedActions.add(actionButton("Create group", this::createHostedGroup));
 			hostedActions.add(Box.createVerticalStrut(4));
-			hostedActions.add(actionButton("Join private group", this::joinHostedGroup));
+			hostedActions.add(actionButton("Join group", this::joinHostedGroup));
 		}
 		else if (current.linked())
 		{
 			JLabel id = muted("Group ID: " + abbreviated(current.groupId()));
 			id.setToolTipText(current.groupId());
 			hostedActions.add(id);
-			if (!current.memberLabel().isEmpty())
-			{
-				hostedActions.add(muted("Your server label: " + current.memberLabel()));
-			}
 			if (current.owner())
 			{
 				if (!current.inviteCode().isEmpty())
 				{
 					JLabel invite = muted("Invite: " + current.inviteCode());
-					invite.setToolTipText("Share this only with people you want on this private server.");
+					invite.setToolTipText("Share this only with people you want in the group.");
 					hostedActions.add(invite);
 					hostedActions.add(actionButton("Copy join details", this::copyJoinDetails));
 				}
@@ -349,10 +345,10 @@ class GroupmanTcgPanel extends PluginPanel
 		form.add(new JLabel("Worker setup key"));
 		form.add(setupKey);
 		form.add(Box.createVerticalStrut(6));
-		form.add(muted("Used once to claim this private Worker; never saved by the plugin."));
-		form.add(muted("Your RuneScape display name will be stored on this private server."));
+		form.add(muted("This key is only needed when the first group is created."));
+		form.add(muted("Group TCG does not save the key. The server stores your display name."));
 		int choice = JOptionPane.showConfirmDialog(this, form,
-			"Create private Group TCG group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			"Create Group TCG group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
 			char[] password = setupKey.getPassword();
@@ -389,8 +385,9 @@ class GroupmanTcgPanel extends PluginPanel
 
 	private void revoke(HostedSyncStatus.Member member)
 	{
+		String memberName = member.playerName().isEmpty() ? member.label() : member.playerName();
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove " + member.label() + " from this server? Their permanent unlocks remain.",
+			"Remove " + memberName + " from this server? Their cards stay in the shared collection.",
 			"Revoke server member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
@@ -406,8 +403,8 @@ class GroupmanTcgPanel extends PluginPanel
 	private void disconnectHosted()
 	{
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove this profile's server token? Shared unlocks remain cached.",
-			"Disconnect private server", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+			"Disconnect this RuneLite profile? Shared unlocks stay saved on the server.",
+			"Disconnect group server", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
 			hosted.disconnect();
@@ -428,7 +425,7 @@ class GroupmanTcgPanel extends PluginPanel
 	{
 		if (error != null)
 		{
-			JOptionPane.showMessageDialog(this, error, "Private server", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(this, error, "Group server", JOptionPane.ERROR_MESSAGE);
 		}
 		refresh();
 	}
@@ -500,7 +497,7 @@ class GroupmanTcgPanel extends PluginPanel
 			{
 				if (shown++ >= MAX_RESULTS)
 				{
-					results.add(muted("More results omitted"));
+					results.add(muted("Keep typing to narrow the results"));
 					break;
 				}
 				boolean unlocked = ownsAny(owned, match.getValue());
@@ -508,7 +505,7 @@ class GroupmanTcgPanel extends PluginPanel
 			}
 			if (matches.isEmpty())
 			{
-				results.add(muted("No matching tracked card"));
+				results.add(muted("No matching card"));
 			}
 		}
 		results.revalidate();
@@ -523,10 +520,10 @@ class GroupmanTcgPanel extends PluginPanel
 		List<HostedCollectionSnapshot.RecentCard> recent = collection.recentCards(collectionKey, MAX_RESULTS);
 		if (recent.isEmpty())
 		{
-			results.add(muted("No dated card pulls available yet."));
+			results.add(muted("No recent pack openings yet."));
 			return;
 		}
-		results.add(muted("Most recent card pulls"));
+		results.add(muted("Recent cards"));
 		for (HostedCollectionSnapshot.RecentCard card : recent)
 		{
 			results.add(recentCardRow(card, shared));

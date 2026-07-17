@@ -10,7 +10,7 @@ import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 
-/** Runs consent and result presentation for private-server Top Trumps duels. */
+/** Handles Top Trumps challenges and results between server members. */
 @Singleton
 class TopTrumpsService
 {

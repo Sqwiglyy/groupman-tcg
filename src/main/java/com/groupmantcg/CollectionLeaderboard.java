@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Calculates a deterministic private-server ranking from each member's unique OSRS TCG cards. */
+/** Ranks server members by the total score of their unique OSRS TCG cards. */
 final class CollectionLeaderboard
 {
 	private CollectionLeaderboard()

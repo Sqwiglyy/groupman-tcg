@@ -29,7 +29,7 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.client.callback.ClientThread;
 
-/** Durable private-server membership, collection, pack, and Top Trumps sync. */
+/** Keeps group membership, collections, pack popups, and Top Trumps in sync. */
 @Slf4j
 @Singleton
 class HostedSyncService
@@ -56,7 +56,7 @@ class HostedSyncService
 
 	private volatile HostedProfile profile;
 	private volatile HostedSyncStatus status = HostedSyncStatus.simple(
-		HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
+		HostedSyncStatus.State.NOT_LINKED, "Create or join a group server");
 	private volatile PlayerContext context = PlayerContext.empty();
 	private volatile long nextSyncAt;
 	private volatile boolean forceUpload;
@@ -109,13 +109,13 @@ class HostedSyncService
 		updateContext();
 		if (!config.hostedSyncEnabled())
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.DISABLED, "Private server disabled in settings");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.DISABLED, "Group server is turned off");
 			return;
 		}
 		HostedProfile current = profile;
 		if (current == null)
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a group server");
 			return;
 		}
 		PlayerContext currentContext = context;
@@ -225,7 +225,7 @@ class HostedSyncService
 		HostedProfile current = profile;
 		if (current == null || !canChallenge(memberId))
 		{
-			complete(callback, "That player is not an approved member of this private server.");
+			complete(callback, "That player is not approved on this group server.");
 			return;
 		}
 		runConcurrentAction(callback, () ->
@@ -244,7 +244,7 @@ class HostedSyncService
 		HostedProfile current = profile;
 		if (current == null || !current.approved())
 		{
-			complete(callback, "Connect to the approved server membership first.");
+			complete(callback, "Join the group server and wait for the host to approve you first.");
 			return;
 		}
 		runConcurrentAction(callback, () ->
@@ -269,7 +269,7 @@ class HostedSyncService
 		}
 		if (cleanSetupKey.length() < 16 || cleanSetupKey.length() > 256)
 		{
-			complete(callback, "Enter this Worker's private setup key (16 to 256 characters).");
+			complete(callback, "Enter the server setup key (16 to 256 characters).");
 			return;
 		}
 		String selectedServer;
@@ -302,7 +302,7 @@ class HostedSyncService
 			profile = created;
 			publishHostedContext();
 			forceUpload = true;
-			status = statusFor(created, HostedSyncStatus.State.SYNCING, "Hosted group created; initial sync pending",
+			status = statusFor(created, HostedSyncStatus.State.SYNCING, "Group created; syncing cards now",
 				Collections.emptyList(), 0L);
 			nextSyncAt = 0L;
 		});
@@ -434,7 +434,7 @@ class HostedSyncService
 		lastMembers = Collections.emptyList();
 		lastMemberRefreshAt = 0L;
 		lastMemberVersion = -1L;
-		status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
+		status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a group server");
 		sharedCollection.hostedContextChanged(null, null, null, false);
 		synchronized (pendingPacks)
 		{
@@ -559,7 +559,7 @@ class HostedSyncService
 			profile = current;
 			applyHostedResults(current, hostedSnapshot, events, topTrumpsEvents);
 			status = statusFor(current, HostedSyncStatus.State.ONLINE,
-				"Cloudflare synced " + lastMembers.size() + " member" + (lastMembers.size() == 1 ? "" : "s"),
+				"Synced " + lastMembers.size() + " member" + (lastMembers.size() == 1 ? "" : "s"),
 				lastMembers, now);
 			nextSyncAt = now + SYNC_INTERVAL_MILLIS;
 		}
@@ -571,7 +571,7 @@ class HostedSyncService
 		{
 			log.debug("Hosted Group TCG sync failed", ex);
 			status = statusFor(current, HostedSyncStatus.State.ERROR,
-				"Cloudflare unavailable; using cached unlocks", lastMembers, status.lastSyncedAt());
+				"Server unavailable; using saved unlocks", lastMembers, status.lastSyncedAt());
 			nextSyncAt = System.currentTimeMillis() + RETRY_INTERVAL_MILLIS;
 		}
 		finally
@@ -827,7 +827,7 @@ class HostedSyncService
 			profileStore.clear();
 			profile = null;
 		}
-		// Re-request the grow-only union once per client/profile session so hosted state can rebuild a missing local cache.
+		// Request the full shared collection once per session so a missing local cache can be rebuilt.
 		if (profile != null)
 		{
 			profile.groupName = serverGroupName(profile.groupId);
@@ -835,13 +835,13 @@ class HostedSyncService
 		}
 		if (profile == null)
 		{
-			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a private group");
+			status = HostedSyncStatus.simple(HostedSyncStatus.State.NOT_LINKED, "Create or join a group server");
 		}
 		else
 		{
 			HostedSyncStatus.State state = profile.approved()
 				? HostedSyncStatus.State.SYNCING : HostedSyncStatus.State.WAITING_APPROVAL;
-			status = statusFor(profile, state, profile.approved() ? "Connecting to Cloudflare..."
+			status = statusFor(profile, state, profile.approved() ? "Connecting to group server..."
 				: "Waiting for owner approval", Collections.emptyList(), 0L);
 		}
 	}
@@ -893,7 +893,7 @@ class HostedSyncService
 			catch (Exception ex)
 			{
 				log.debug("Hosted Group TCG action failed", ex);
-				error = "The private server could not complete the request.";
+				error = "The group server could not complete the request.";
 			}
 			complete(callback, error);
 		});
@@ -963,7 +963,7 @@ class HostedSyncService
 	{
 		if (groupId == null || groupId.trim().isEmpty())
 		{
-			return "Private server";
+			return "Group server";
 		}
 		String clean = groupId.trim();
 		return "Server " + clean.substring(0, Math.min(8, clean.length()));

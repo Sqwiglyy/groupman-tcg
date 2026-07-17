@@ -1,9 +1,8 @@
 # Third-party notices
 
-The bundled `tracked_monster_names.json`, `tracked_item_names.json`,
-`resource_nodes.json`, and `recipe_nodes.json` rule/catalog snapshots were
-initially generated or curated for Felmeme's Bronzeman TCG project from OSRS
-TCG card data. They are redistributed under the following licence:
+The bundled rule files were originally created or curated for Felmeme's
+Bronzeman TCG project using OSRS TCG card data. They are redistributed under
+the following licence:
 
 BSD 2-Clause License
 
@@ -31,10 +30,10 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-The OSRS TCG project is maintained by Azderi. Group TCG interoperates
-read-only with OSRS TCG's profile-scoped state. The bundled
-`osrs_tcg_cards.json` is an unmodified snapshot of OSRS TCG's public
-`Card.json` at commit `ffb5290402853d3254e803f2661a40602216ad9d`.
+OSRS TCG is maintained by Azderi. Group TCG reads the collection saved in the
+current RuneLite profile. The bundled `osrs_tcg_cards.json` is an unmodified
+copy of OSRS TCG's public `Card.json` at commit
+`ffb5290402853d3254e803f2661a40602216ad9d`.
 
 `OsrsTcgCardRenderer.java` is adapted from OSRS TCG's
 `SharedCardRenderer.java`; the full collection album layout is adapted from its

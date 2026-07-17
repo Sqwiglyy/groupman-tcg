@@ -20,7 +20,7 @@ import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 
-/** Owns the effective solo collection or the grow-only collection of an approved private server. */
+/** Chooses between the player's cards and the shared server collection. */
 @Slf4j
 @Singleton
 class SharedCollectionService
@@ -393,7 +393,7 @@ class SharedCollectionService
 			memberCollections = loaded.memberCollections;
 		}
 		groupName = incomingGroupName == null || incomingGroupName.trim().isEmpty()
-			? "Private server" : incomingGroupName.trim();
+			? "Group server" : incomingGroupName.trim();
 		localPlayerName = incomingPlayerName == null ? null : incomingPlayerName.trim();
 		approved = incomingApproved;
 		refresh();
@@ -479,7 +479,7 @@ class SharedCollectionService
 		}
 		if (groupId == null || !approved)
 		{
-			status = inactiveStatus(local.size(), "Join an approved private server group");
+			status = inactiveStatus(local.size(), "Join a group server and wait for host approval");
 			return;
 		}
 
@@ -496,7 +496,7 @@ class SharedCollectionService
 			persist();
 		}
 		status = new GroupSyncStatus(true, true, true, groupName, sharedCards.size(),
-			memberCollections.size(), memberCollections.size(), "Shared through the private Group TCG server");
+			memberCollections.size(), memberCollections.size(), "Using cards shared through the group server");
 	}
 
 	private LoadedCache loadCache()
