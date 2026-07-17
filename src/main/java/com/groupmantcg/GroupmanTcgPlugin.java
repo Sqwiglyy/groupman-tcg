@@ -33,7 +33,7 @@ import net.runelite.client.util.Text;
 @Slf4j
 @PluginDescriptor(
 	name = "Group TCG",
-	description = "Solo or private-server Bronzeman restrictions powered by OSRS TCG collections",
+	description = "Use OSRS TCG cards as solo or shared Bronzeman unlocks",
 	tags = {"tcg", "group", "bronzeman", "restriction", "multiplayer", "solo"}
 )
 public class GroupmanTcgPlugin extends Plugin
@@ -74,6 +74,10 @@ public class GroupmanTcgPlugin extends Plugin
 	private TopTrumpsService topTrumps;
 	@Inject
 	private TopTrumpsOverlay topTrumpsOverlay;
+	@Inject
+	private CollectionAlbumManager collectionAlbums;
+	@Inject
+	private CardVisualCatalog cardVisuals;
 
 	private GroupmanTcgPanel panel;
 	private NavigationButton navigation;
@@ -86,7 +90,8 @@ public class GroupmanTcgPlugin extends Plugin
 		hostedSync.start();
 		packReveals.start();
 		topTrumps.start();
-		panel = new GroupmanTcgPanel(collection, hostedSync, topTrumps, monsters, items);
+		panel = new GroupmanTcgPanel(collection, hostedSync, topTrumps, collectionAlbums,
+			monsters, items, cardVisuals);
 		navigation = NavigationButton.builder()
 			.tooltip("Group TCG")
 			.icon(createIcon())
@@ -105,6 +110,7 @@ public class GroupmanTcgPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		collectionAlbums.dispose();
 		packReveals.stop();
 		topTrumps.stop();
 		hostedSync.stop();
@@ -129,12 +135,13 @@ public class GroupmanTcgPlugin extends Plugin
 		packReveals.onTick();
 		hostedSync.onTick();
 		topTrumps.onTick();
-		if (panel != null && ++panelTicks % 5 == 0)
+		if (++panelTicks % 5 == 0)
 		{
+			collectionAlbums.refreshIfVisible();
 			GroupmanTcgPanel currentPanel = panel;
 			SwingUtilities.invokeLater(() ->
 			{
-				if (currentPanel.isShowing())
+				if (currentPanel != null && currentPanel.isShowing())
 				{
 					currentPanel.refresh();
 				}

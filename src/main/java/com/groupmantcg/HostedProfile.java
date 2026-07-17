@@ -1,6 +1,6 @@
 package com.groupmantcg;
 
-/** Private, RuneScape-profile-scoped credentials and sync cursors. */
+/** Server login and sync progress saved for one RuneLite profile. */
 final class HostedProfile
 {
 	String groupId;

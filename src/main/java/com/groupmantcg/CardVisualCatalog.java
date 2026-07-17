@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -20,11 +21,12 @@ import lombok.extern.slf4j.Slf4j;
 class CardVisualCatalog
 {
 	private final Map<String, CardVisual> cards;
+	private final List<CardVisual> allCards;
 
 	@Inject
 	CardVisualCatalog(Gson gson)
 	{
-		Map<String, CardVisual> loaded = new HashMap<>();
+		Map<String, CardVisual> loaded = new LinkedHashMap<>();
 		List<CardVisual> catalog = new ArrayList<>();
 		try (InputStream input = getClass().getResourceAsStream("/osrs_tcg_cards.json"))
 		{
@@ -63,11 +65,17 @@ class CardVisualCatalog
 			log.warn("Unable to load OSRS TCG card visuals", ex);
 		}
 		cards = Collections.unmodifiableMap(loaded);
+		allCards = Collections.unmodifiableList(new ArrayList<>(loaded.values()));
 	}
 
 	CardVisual find(String name)
 	{
 		return name == null ? null : cards.get(EntityCardCatalog.normalize(name));
+	}
+
+	List<CardVisual> all()
+	{
+		return allCards;
 	}
 
 	int size()

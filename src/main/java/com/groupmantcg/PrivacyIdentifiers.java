@@ -5,7 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
-/** Keeps raw OSRS TCG source-instance IDs out of private-server payloads. */
+/** Replaces OSRS TCG copy IDs before they are sent to a group server. */
 final class PrivacyIdentifiers
 {
 	private PrivacyIdentifiers()

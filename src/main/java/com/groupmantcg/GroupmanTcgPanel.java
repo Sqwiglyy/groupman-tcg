@@ -5,9 +5,13 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.swing.BorderFactory;
@@ -30,27 +34,37 @@ import net.runelite.client.ui.components.IconTextField;
 class GroupmanTcgPanel extends PluginPanel
 {
 	private static final int MAX_RESULTS = 20;
+	private static final DateTimeFormatter RECENT_DATE = DateTimeFormatter.ofPattern("d MMM HH:mm")
+		.withZone(ZoneId.systemDefault());
+	private static final DateTimeFormatter RECENT_TOOLTIP_DATE = DateTimeFormatter.ofPattern("d MMM uuuu HH:mm")
+		.withZone(ZoneId.systemDefault());
 	private final SharedCollectionService collection;
 	private final HostedSyncService hosted;
 	private final TopTrumpsService topTrumps;
+	private final CollectionAlbumManager albums;
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
+	private final CardVisualCatalog visuals;
 	private final IconTextField search = new IconTextField();
 	private final JComboBox<CollectionChoice> collectionSelector = new JComboBox<>();
 	private final JLabel syncStatus = muted("Loading collection...");
-	private final JLabel hostedStatus = muted("Loading private server...");
+	private final JLabel hostedStatus = muted("Loading group server...");
 	private final JPanel hostedActions = body();
+	private final JPanel leaderboard = body();
 	private final JPanel results = body();
 	private boolean updatingSelector;
 
 	GroupmanTcgPanel(SharedCollectionService collection, HostedSyncService hosted,
-		TopTrumpsService topTrumps, MonsterCardCatalog monsters, ItemCardCatalog items)
+		TopTrumpsService topTrumps, CollectionAlbumManager albums,
+		MonsterCardCatalog monsters, ItemCardCatalog items, CardVisualCatalog visuals)
 	{
 		this.collection = collection;
 		this.hosted = hosted;
 		this.topTrumps = topTrumps;
+		this.albums = albums;
 		this.monsters = monsters;
 		this.items = items;
+		this.visuals = visuals;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
@@ -91,14 +105,29 @@ class GroupmanTcgPanel extends PluginPanel
 		add(Box.createVerticalStrut(6));
 		add(header("Browse collection"));
 		add(collectionSelector);
+		add(Box.createVerticalStrut(4));
+		add(actionButton("Open full collection", this::openFullCollection));
 		add(header("Group status"));
 		add(syncStatus);
-		add(header("Private server"));
+		add(header("Group server"));
 		add(hostedStatus);
 		add(hostedActions);
+		add(header("Server leaderboard"));
+		add(leaderboard);
 		add(header("Card lookup"));
 		add(results);
 		refresh();
+	}
+
+	private void openFullCollection()
+	{
+		CollectionChoice selected = (CollectionChoice) collectionSelector.getSelectedItem();
+		if (selected == null)
+		{
+			albums.show("", "Shared collection");
+			return;
+		}
+		albums.show(selected.key, selected.displayName);
 	}
 
 	void refresh()
@@ -124,8 +153,96 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 		syncStatus.setToolTipText(status.getDetail());
 		refreshHosted();
+		refreshLeaderboard();
 		refreshCollectionChoices();
 		refreshSearch();
+	}
+
+	private void refreshLeaderboard()
+	{
+		leaderboard.removeAll();
+		HostedSyncStatus current = hosted.status();
+		if (!current.linked())
+		{
+			leaderboard.add(muted("Join a group server to compare collections."));
+		}
+		else if (current.state() == HostedSyncStatus.State.WAITING_APPROVAL)
+		{
+			leaderboard.add(muted("The leaderboard appears after the host approves you."));
+		}
+		else
+		{
+			List<CollectionLeaderboard.Entry> entries = CollectionLeaderboard.rank(
+				collection.memberCollections(), visuals);
+			if (entries.isEmpty())
+			{
+				leaderboard.add(muted("Waiting for group collections to sync."));
+			}
+			else
+			{
+				for (int index = 0; index < entries.size(); index++)
+				{
+					leaderboard.add(leaderboardRow(index + 1, entries.get(index)));
+					if (index + 1 < entries.size())
+					{
+						leaderboard.add(Box.createVerticalStrut(3));
+					}
+				}
+			}
+		}
+		leaderboard.revalidate();
+		leaderboard.repaint();
+	}
+
+	private JPanel leaderboardRow(int rank, CollectionLeaderboard.Entry entry)
+	{
+		JPanel row = body();
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row.setBorder(BorderFactory.createEmptyBorder(4, 5, 4, 5));
+		JPanel heading = new JPanel(new BorderLayout());
+		heading.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		JLabel player = new JLabel("#" + rank + "  " + entry.playerName());
+		player.setForeground(Color.WHITE);
+		heading.add(player, BorderLayout.CENTER);
+		JLabel points = new JLabel(compactPoints(entry.points()) + " pts");
+		points.setForeground(ColorScheme.BRAND_ORANGE);
+		heading.add(points, BorderLayout.EAST);
+		row.add(heading);
+		JLabel cards = muted(entry.uniqueCards() + " unique card" + (entry.uniqueCards() == 1 ? "" : "s"));
+		cards.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+		row.add(cards);
+		String tooltip = String.format(Locale.UK, "%,d points from %,d unique OSRS TCG cards. "
+			+ "Duplicate copies do not add points.", entry.points(), entry.uniqueCards());
+		row.setToolTipText(tooltip);
+		heading.setToolTipText(tooltip);
+		player.setToolTipText(tooltip);
+		points.setToolTipText(tooltip);
+		cards.setToolTipText(tooltip);
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+		return row;
+	}
+
+	private static String compactPoints(long points)
+	{
+		if (points < 1_000L)
+		{
+			return Long.toString(points);
+		}
+		if (points < 1_000_000L)
+		{
+			return compactNumber(points / 1_000.0d) + "k";
+		}
+		if (points < 1_000_000_000L)
+		{
+			return compactNumber(points / 1_000_000.0d) + "m";
+		}
+		return compactNumber(points / 1_000_000_000.0d) + "b";
+	}
+
+	private static String compactNumber(double value)
+	{
+		String formatted = String.format(Locale.ROOT, value >= 100.0d ? "%.0f" : "%.1f", value);
+		return formatted.endsWith(".0") ? formatted.substring(0, formatted.length() - 2) : formatted;
 	}
 
 	private void refreshHosted()
@@ -154,25 +271,21 @@ class GroupmanTcgPanel extends PluginPanel
 		hostedActions.removeAll();
 		if (current.state() == HostedSyncStatus.State.NOT_LINKED)
 		{
-			hostedActions.add(actionButton("Create private group", this::createHostedGroup));
+			hostedActions.add(actionButton("Create group", this::createHostedGroup));
 			hostedActions.add(Box.createVerticalStrut(4));
-			hostedActions.add(actionButton("Join private group", this::joinHostedGroup));
+			hostedActions.add(actionButton("Join group", this::joinHostedGroup));
 		}
 		else if (current.linked())
 		{
 			JLabel id = muted("Group ID: " + abbreviated(current.groupId()));
 			id.setToolTipText(current.groupId());
 			hostedActions.add(id);
-			if (!current.memberLabel().isEmpty())
-			{
-				hostedActions.add(muted("Your server label: " + current.memberLabel()));
-			}
 			if (current.owner())
 			{
 				if (!current.inviteCode().isEmpty())
 				{
 					JLabel invite = muted("Invite: " + current.inviteCode());
-					invite.setToolTipText("Share this only with people you want on this private server.");
+					invite.setToolTipText("Share this only with people you want in the group.");
 					hostedActions.add(invite);
 					hostedActions.add(actionButton("Copy join details", this::copyJoinDetails));
 				}
@@ -232,10 +345,10 @@ class GroupmanTcgPanel extends PluginPanel
 		form.add(new JLabel("Worker setup key"));
 		form.add(setupKey);
 		form.add(Box.createVerticalStrut(6));
-		form.add(muted("Used once to claim this private Worker; never saved by the plugin."));
-		form.add(muted("Your RuneScape display name will be stored on this private server."));
+		form.add(muted("This key is only needed when the first group is created."));
+		form.add(muted("Group TCG does not save the key. The server stores your display name."));
 		int choice = JOptionPane.showConfirmDialog(this, form,
-			"Create private Group TCG group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			"Create Group TCG group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
 			char[] password = setupKey.getPassword();
@@ -272,8 +385,9 @@ class GroupmanTcgPanel extends PluginPanel
 
 	private void revoke(HostedSyncStatus.Member member)
 	{
+		String memberName = member.playerName().isEmpty() ? member.label() : member.playerName();
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove " + member.label() + " from this server? Their permanent unlocks remain.",
+			"Remove " + memberName + " from this server? Their cards stay in the shared collection.",
 			"Revoke server member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
@@ -289,8 +403,8 @@ class GroupmanTcgPanel extends PluginPanel
 	private void disconnectHosted()
 	{
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove this profile's server token? Shared unlocks remain cached.",
-			"Disconnect private server", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+			"Disconnect this RuneLite profile? Shared unlocks stay saved on the server.",
+			"Disconnect group server", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{
 			hosted.disconnect();
@@ -311,7 +425,7 @@ class GroupmanTcgPanel extends PluginPanel
 	{
 		if (error != null)
 		{
-			JOptionPane.showMessageDialog(this, error, "Private server", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(this, error, "Group server", JOptionPane.ERROR_MESSAGE);
 		}
 		refresh();
 	}
@@ -368,7 +482,7 @@ class GroupmanTcgPanel extends PluginPanel
 		String query = EntityCardCatalog.normalize(search.getText());
 		if (query.isEmpty())
 		{
-			results.add(muted("Search cards; hover owners for pull details."));
+			showRecentCards();
 		}
 		else
 		{
@@ -383,7 +497,7 @@ class GroupmanTcgPanel extends PluginPanel
 			{
 				if (shown++ >= MAX_RESULTS)
 				{
-					results.add(muted("More results omitted"));
+					results.add(muted("Keep typing to narrow the results"));
 					break;
 				}
 				boolean unlocked = ownsAny(owned, match.getValue());
@@ -391,11 +505,52 @@ class GroupmanTcgPanel extends PluginPanel
 			}
 			if (matches.isEmpty())
 			{
-				results.add(muted("No matching tracked card"));
+				results.add(muted("No matching card"));
 			}
 		}
 		results.revalidate();
 		results.repaint();
+	}
+
+	private void showRecentCards()
+	{
+		CollectionChoice choice = (CollectionChoice) collectionSelector.getSelectedItem();
+		boolean shared = choice == null || choice.key.isEmpty();
+		String collectionKey = choice == null ? "" : choice.key;
+		List<HostedCollectionSnapshot.RecentCard> recent = collection.recentCards(collectionKey, MAX_RESULTS);
+		if (recent.isEmpty())
+		{
+			results.add(muted("No recent pack openings yet."));
+			return;
+		}
+		results.add(muted("Recent cards"));
+		for (HostedCollectionSnapshot.RecentCard card : recent)
+		{
+			results.add(recentCardRow(card, shared));
+		}
+	}
+
+	private JPanel recentCardRow(HostedCollectionSnapshot.RecentCard card, boolean shared)
+	{
+		JPanel row = new JPanel(new BorderLayout());
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
+		JLabel name = new JLabel(card.cardName() + (card.foil() ? " (foil)" : ""));
+		name.setForeground(card.foil() ? ColorScheme.BRAND_ORANGE : Color.WHITE);
+		row.add(name, BorderLayout.CENTER);
+		JLabel detail = new JLabel(shared ? card.owner() : RECENT_DATE.format(Instant.ofEpochMilli(card.pulledAt())));
+		detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		String tooltip = card.owner() + " - pulled "
+			+ RECENT_TOOLTIP_DATE.format(Instant.ofEpochMilli(card.pulledAt()));
+		if (card.foil())
+		{
+			tooltip += " - foil";
+		}
+		name.setToolTipText(tooltip);
+		detail.setToolTipText(tooltip);
+		row.add(detail, BorderLayout.EAST);
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+		return row;
 	}
 
 	private static void collectMatches(Map<String, Set<String>> destination, String prefix,

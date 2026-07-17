@@ -40,5 +40,13 @@ public class CardCatalogTest
 		assertEquals(allCards, index.decode(encoded));
 		assertFalse(index.fingerprint().isEmpty());
 	}
-}
 
+	@Test
+	public void visualCatalogExposesEveryUniqueCardForTheAlbum()
+	{
+		CardVisualCatalog visuals = new CardVisualCatalog(new Gson());
+
+		assertEquals(visuals.size(), visuals.all().size());
+		assertTrue(visuals.all().size() > 6_000);
+	}
+}
