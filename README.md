@@ -38,9 +38,9 @@ in-game GIM roster.
 - Solo or official Group Ironman collection modes.
 - Grow-only, profile-scoped group unlock cache.
 - Compact RuneLite Party snapshots with catalog compatibility checks.
-- Authenticated Cloudflare sync at
-  `https://groupman-tcg-api.sqwiglyy.workers.dev` for durable unlocks,
-  individual collections, provenance, and pack reveals missed while offline.
+- Authenticated Cloudflare sync through Sqwiglyy's public service by default,
+  with an optional self-hosted Worker URL for groups that want to own their
+  database, durable unlocks, provenance, and offline pack history.
 - Sidebar collection browser with a shared view and one cached collection per
   verified group member. Shared search results identify the current owner;
   hovering the owner shows locally available copy, foil, original-puller, and
@@ -80,12 +80,21 @@ but must not claim that it can distinguish a direct pull from a later trade.
 
 ## Hosted group setup
 
-1. Log into the Group Ironman account and open the Groupman TCG sidebar.
-2. One teammate chooses **Create hosted group**, then copies the displayed
+1. Decide whether to use the default Sqwiglyy service or deploy the companion
+   Worker to one teammate's Cloudflare account.
+2. If self-hosting, every teammate sets **Hosted server URL** to the same
+   `https://...workers.dev` address before joining or creating the group.
+3. Log into the Group Ironman account and open the Groupman TCG sidebar.
+4. One teammate chooses **Create hosted group**, then copies the displayed
    group ID and invite code.
-3. Each teammate chooses **Join hosted group** and enters those two values.
-4. The owner approves only names that the plugin confirms are on the official
+5. Each teammate chooses **Join hosted group** and enters those two values.
+6. The owner approves only names that the plugin confirms are on the official
    GIM roster.
+
+The server selected when a profile creates or joins a group is saved with that
+profile. Its bearer token is always sent back to that same server, even if the
+global URL setting is later changed. To move to another server, disconnect the
+hosted profile, choose the new URL, and create or join a group there.
 
 The bearer token is stored in that RuneScape profile's local RuneLite
 configuration and is never displayed in the sidebar or written to plugin logs.

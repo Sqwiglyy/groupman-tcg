@@ -129,6 +129,18 @@ public interface GroupmanTcgConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "hostedServerUrl",
+		name = "Hosted server URL",
+		description = "Cloudflare Worker URL used when creating or joining a new hosted group. Leave the default to use Sqwiglyy's public service.",
+		section = collectionSection,
+		position = 6
+	)
+	default String hostedServerUrl()
+	{
+		return HostedApiClient.PRODUCTION_URL;
+	}
+
+	@ConfigItem(
 		keyName = "topTrumpsEnabled",
 		name = "Enable Top Trumps",
 		description = "Add a Top Trumps option when right-clicking an online, verified group member and accept incoming challenges.",

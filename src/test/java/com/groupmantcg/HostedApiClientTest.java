@@ -115,6 +115,49 @@ public class HostedApiClientTest
 		assertEquals("Bearer member-token", request.getHeader("Authorization"));
 	}
 
+	@Test
+	public void keepsAStoredTokenBoundToTheServerThatIssuedIt() throws Exception
+	{
+		try (MockWebServer configuredServer = new MockWebServer();
+			 MockWebServer profileServer = new MockWebServer())
+		{
+			configuredServer.start();
+			profileServer.start();
+			GroupmanTcgConfig customConfig = new GroupmanTcgConfig()
+			{
+				@Override
+				public String hostedServerUrl()
+				{
+					return configuredServer.url("/").toString();
+				}
+			};
+			HostedApiClient configuredApi = new HostedApiClient(new OkHttpClient(), new Gson(), customConfig);
+			HostedProfile profile = profile();
+			profile.serverUrl = profileServer.url("/").toString();
+			profileServer.enqueue(json(200, "{\"group\":{\"id\":\"group-1\"},\"members\":[]}"));
+
+			configuredApi.getGroup(profile);
+
+			RecordedRequest request = profileServer.takeRequest();
+			assertEquals("Bearer member-token", request.getHeader("Authorization"));
+			assertEquals(0, configuredServer.getRequestCount());
+		}
+	}
+
+	@Test
+	public void rejectsUnencryptedRemoteServers()
+	{
+		try
+		{
+			new HostedApiClient(new OkHttpClient(), new Gson(), "http://example.com");
+			fail("Expected insecure server URL to be rejected");
+		}
+		catch (IllegalArgumentException ex)
+		{
+			assertTrue(ex.getMessage().contains("HTTPS"));
+		}
+	}
+
 	private static HostedProfile profile()
 	{
 		HostedProfile profile = new HostedProfile();

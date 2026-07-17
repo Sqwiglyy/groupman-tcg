@@ -10,6 +10,7 @@ final class HostedProfile
 	String role;
 	String status;
 	String token;
+	String serverUrl;
 	String inviteCode;
 	long inviteExpiresAt;
 	long eventCursor;

@@ -200,9 +200,19 @@ class HostedSyncService
 			complete(callback, "The hosted group name must contain 1-40 characters.");
 			return;
 		}
+		String selectedServer;
+		try
+		{
+			selectedServer = api.configuredBaseUrl();
+		}
+		catch (IOException ex)
+		{
+			complete(callback, ex.getMessage());
+			return;
+		}
 		runAction(callback, () ->
 		{
-			HostedApiClient.CreateResponse response = api.createGroup(cleanName, currentContext.rsn);
+			HostedApiClient.CreateResponse response = api.createGroupAt(selectedServer, cleanName, currentContext.rsn);
 			if (response.group == null || response.member == null || response.invite == null)
 			{
 				throw new IOException("The hosted service returned an incomplete group");
@@ -212,6 +222,7 @@ class HostedSyncService
 				throw new IOException("The active RuneScape profile changed during setup");
 			}
 			HostedProfile created = profileFrom(response.group, response.member);
+			created.serverUrl = selectedServer;
 			created.inviteCode = response.invite.code;
 			created.inviteExpiresAt = response.invite.expiresAt;
 			profileStore.save(created);
@@ -238,9 +249,20 @@ class HostedSyncService
 			complete(callback, "Enter both the group ID and invite code.");
 			return;
 		}
+		String selectedServer;
+		try
+		{
+			selectedServer = api.configuredBaseUrl();
+		}
+		catch (IOException ex)
+		{
+			complete(callback, ex.getMessage());
+			return;
+		}
 		runAction(callback, () ->
 		{
-			HostedApiClient.JoinResponse response = api.joinGroup(cleanGroup, currentContext.rsn, cleanInvite);
+			HostedApiClient.JoinResponse response = api.joinGroupAt(selectedServer, cleanGroup,
+				currentContext.rsn, cleanInvite);
 			if (response.member == null)
 			{
 				throw new IOException("The hosted service returned an incomplete membership");
@@ -251,6 +273,7 @@ class HostedSyncService
 			}
 			HostedProfile joined = profileFrom(null, response.member);
 			joined.groupId = cleanGroup;
+			joined.serverUrl = selectedServer;
 			profileStore.save(joined);
 			profile = joined;
 			status = statusFor(joined, HostedSyncStatus.State.WAITING_APPROVAL,
@@ -686,6 +709,12 @@ class HostedSyncService
 	private void reloadProfile()
 	{
 		profile = profileStore.load();
+		if (profile != null && (profile.serverUrl == null || profile.serverUrl.trim().isEmpty()))
+		{
+			// Profiles created before custom endpoints existed always used the public Sqwiglyy service.
+			profile.serverUrl = HostedApiClient.PRODUCTION_URL;
+			profileStore.save(profile);
+		}
 		// Re-request the grow-only union once per client/profile session so hosted state can rebuild a missing local cache.
 		if (profile != null)
 		{

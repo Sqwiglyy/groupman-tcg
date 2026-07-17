@@ -24,75 +24,86 @@ class HostedApiClient
 
 	private final OkHttpClient http;
 	private final Gson gson;
-	private final HttpUrl baseUrl;
+	private final GroupmanTcgConfig config;
+	private final HttpUrl fixedBaseUrl;
 
 	@Inject
-	HostedApiClient(OkHttpClient http, Gson gson)
+	HostedApiClient(OkHttpClient http, Gson gson, GroupmanTcgConfig config)
 	{
-		this(http, gson, PRODUCTION_URL);
+		this.http = http;
+		this.gson = gson;
+		this.config = config;
+		this.fixedBaseUrl = null;
 	}
 
 	HostedApiClient(OkHttpClient http, Gson gson, String baseUrl)
 	{
 		this.http = http;
 		this.gson = gson;
-		this.baseUrl = HttpUrl.parse(baseUrl);
-		if (this.baseUrl == null || !"https".equals(this.baseUrl.scheme()) && !"http".equals(this.baseUrl.scheme()))
-		{
-			throw new IllegalArgumentException("Invalid API base URL");
-		}
+		this.config = null;
+		this.fixedBaseUrl = parseBaseUrl(baseUrl);
 	}
 
 	CreateResponse createGroup(String groupName, String ownerRsn) throws IOException
 	{
-		return call("POST", url("v1", "groups"), new CreateRequest(groupName, ownerRsn), null,
+		return createGroupAt(configuredBaseUrl(), groupName, ownerRsn);
+	}
+
+	CreateResponse createGroupAt(String serverUrl, String groupName, String ownerRsn) throws IOException
+	{
+		return call("POST", url(serverUrl, "v1", "groups"), new CreateRequest(groupName, ownerRsn), null,
 			CreateResponse.class);
 	}
 
 	JoinResponse joinGroup(String groupId, String rsn, String inviteCode) throws IOException
 	{
-		return call("POST", url("v1", "join"), new JoinRequest(groupId, rsn, inviteCode), null,
+		return joinGroupAt(configuredBaseUrl(), groupId, rsn, inviteCode);
+	}
+
+	JoinResponse joinGroupAt(String serverUrl, String groupId, String rsn, String inviteCode) throws IOException
+	{
+		return call("POST", url(serverUrl, "v1", "join"), new JoinRequest(groupId, rsn, inviteCode), null,
 			JoinResponse.class);
 	}
 
 	GroupResponse getGroup(HostedProfile profile) throws IOException
 	{
-		return call("GET", url("v1", "groups", profile.groupId), null, profile, GroupResponse.class);
+		return call("GET", url(profile, "v1", "groups", profile.groupId), null, profile, GroupResponse.class);
 	}
 
 	void approveMember(HostedProfile profile, String memberId) throws IOException
 	{
-		call("POST", url("v1", "groups", profile.groupId, "members", memberId),
+		call("POST", url(profile, "v1", "groups", profile.groupId, "members", memberId),
 			Collections.emptyMap(), profile, EmptyResponse.class);
 	}
 
 	void revokeMember(HostedProfile profile, String memberId) throws IOException
 	{
-		call("DELETE", url("v1", "groups", profile.groupId, "members", memberId),
+		call("DELETE", url(profile, "v1", "groups", profile.groupId, "members", memberId),
 			Collections.emptyMap(), profile, EmptyResponse.class);
 	}
 
 	InviteResponse rotateInvite(HostedProfile profile) throws IOException
 	{
-		return call("POST", url("v1", "groups", profile.groupId, "invite"),
+		return call("POST", url(profile, "v1", "groups", profile.groupId, "invite"),
 			Collections.emptyMap(), profile, InviteResponse.class);
 	}
 
 	void uploadMemberCollection(HostedProfile profile, String snapshotId,
 		List<CardInstanceUpload> instances, boolean complete) throws IOException
 	{
-		call("POST", url("v1", "groups", profile.groupId, "member-collection"),
+		call("POST", url(profile, "v1", "groups", profile.groupId, "member-collection"),
 			new MemberCollectionRequest(snapshotId, complete, instances), profile, EmptyResponse.class);
 	}
 
 	void uploadPack(HostedProfile profile, PackUpload pack) throws IOException
 	{
-		call("POST", url("v1", "groups", profile.groupId, "packs"), pack, profile, EmptyResponse.class);
+		call("POST", url(profile, "v1", "groups", profile.groupId, "packs"), pack, profile, EmptyResponse.class);
 	}
 
 	SyncResponse sync(HostedProfile profile, long cursor, long collectionVersion) throws IOException
 	{
-		HttpUrl target = url("v1", "groups", profile.groupId, "sync").newBuilder()
+		HttpUrl target = url(profile, "v1", "groups", profile.groupId, "sync").newBuilder()
 			.addQueryParameter("after", Long.toString(Math.max(0L, cursor)))
 			.addQueryParameter("collectionVersion", Long.toString(Math.max(0L, collectionVersion)))
 			.addQueryParameter("limit", "100")
@@ -102,27 +113,87 @@ class HostedApiClient
 
 	MemberCollectionsResponse getMemberCollections(HostedProfile profile) throws IOException
 	{
-		return call("GET", url("v1", "groups", profile.groupId, "member-collections"),
+		return call("GET", url(profile, "v1", "groups", profile.groupId, "member-collections"),
 			null, profile, MemberCollectionsResponse.class);
 	}
 
 	MemberCollectionResponse getMemberCollection(HostedProfile profile, String memberId, int offset) throws IOException
 	{
-		HttpUrl target = url("v1", "groups", profile.groupId, "members", memberId, "collection").newBuilder()
+		HttpUrl target = url(profile, "v1", "groups", profile.groupId, "members", memberId, "collection").newBuilder()
 			.addQueryParameter("offset", Integer.toString(Math.max(0, offset)))
 			.addQueryParameter("limit", "200")
 			.build();
 		return call("GET", target, null, profile, MemberCollectionResponse.class);
 	}
 
-	private HttpUrl url(String... segments)
+	String configuredBaseUrl() throws IOException
 	{
-		HttpUrl.Builder builder = baseUrl.newBuilder();
+		return resolveBaseUrl(null).toString();
+	}
+
+	private HttpUrl url(HostedProfile profile, String... segments) throws IOException
+	{
+		HttpUrl.Builder builder = resolveBaseUrl(profile).newBuilder();
 		for (String segment : segments)
 		{
 			builder.addPathSegment(segment);
 		}
 		return builder.build();
+	}
+
+	private HttpUrl url(String serverUrl, String... segments) throws IOException
+	{
+		HttpUrl base;
+		try
+		{
+			base = parseBaseUrl(serverUrl);
+		}
+		catch (IllegalArgumentException ex)
+		{
+			throw new IOException(ex.getMessage(), ex);
+		}
+		HttpUrl.Builder builder = base.newBuilder();
+		for (String segment : segments)
+		{
+			builder.addPathSegment(segment);
+		}
+		return builder.build();
+	}
+
+	private HttpUrl resolveBaseUrl(HostedProfile profile) throws IOException
+	{
+		if (fixedBaseUrl != null)
+		{
+			return fixedBaseUrl;
+		}
+		String configured = profile != null && profile.serverUrl != null && !profile.serverUrl.trim().isEmpty()
+			? profile.serverUrl : config.hostedServerUrl();
+		try
+		{
+			return parseBaseUrl(configured);
+		}
+		catch (IllegalArgumentException ex)
+		{
+			throw new IOException(ex.getMessage(), ex);
+		}
+	}
+
+	private static HttpUrl parseBaseUrl(String value)
+	{
+		HttpUrl parsed = value == null ? null : HttpUrl.parse(value.trim());
+		if (parsed == null || parsed.host().isEmpty() || !parsed.username().isEmpty()
+			|| !parsed.password().isEmpty() || parsed.querySize() > 0 || parsed.fragment() != null
+			|| !"/".equals(parsed.encodedPath()))
+		{
+			throw new IllegalArgumentException("Hosted server URL must be a server root such as https://example.workers.dev");
+		}
+		boolean local = "localhost".equals(parsed.host()) || "127.0.0.1".equals(parsed.host())
+			|| "::1".equals(parsed.host());
+		if (!"https".equals(parsed.scheme()) && !(local && "http".equals(parsed.scheme())))
+		{
+			throw new IllegalArgumentException("Hosted server URL must use HTTPS (HTTP is allowed only for localhost)");
+		}
+		return parsed;
 	}
 
 	private <T> T call(String method, HttpUrl url, Object body, HostedProfile profile,

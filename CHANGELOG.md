@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added an optional self-hosted Cloudflare Worker URL while retaining
+  Sqwiglyy's public service as the default.
+- Bound each profile token to the server that issued it so changing the global
+  URL cannot redirect an existing credential.
+
 - Add profile-scoped hosted group creation, invite joining, roster-gated owner
   approval, and token-free sidebar management.
 - Upload exact personal collection snapshots and pack events to the Sqwiglyy
