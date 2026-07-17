@@ -39,6 +39,7 @@ class HostedSyncService
 	private static final long MEMBER_REFRESH_MILLIS = 5 * 60_000L;
 	private static final int COLLECTION_CHUNK = 150;
 	private static final int MAX_PENDING_PACKS = 25;
+	private static final int MAX_RECENT_CARDS = 20;
 
 	private final Client client;
 	private final ClientThread clientThread;
@@ -684,9 +685,11 @@ class HostedSyncService
 	{
 		HostedApiClient.MemberCollectionsResponse summaries = api.getMemberCollections(current);
 		Map<String, Map<String, HostedCollectionSnapshot.CardDetails>> members = new LinkedHashMap<>();
+		Map<String, List<HostedCollectionSnapshot.RecentCard>> recentMembers = new LinkedHashMap<>();
 		if (summaries.members == null)
 		{
-			return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks, members);
+			return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks,
+				members, recentMembers);
 		}
 		for (HostedApiClient.MemberSummary summary : summaries.members)
 		{
@@ -695,6 +698,7 @@ class HostedSyncService
 				continue;
 			}
 			Map<String, MutableCard> accumulated = new HashMap<>();
+			List<HostedApiClient.CardInstanceResult> recentInstances = new ArrayList<>();
 			int offset = 0;
 			for (int page = 0; page < 50; page++)
 			{
@@ -710,6 +714,10 @@ class HostedSyncService
 						String key = EntityCardCatalog.normalize(instance.cardName);
 						accumulated.computeIfAbsent(key, ignored -> new MutableCard(instance.cardName))
 							.add(instance);
+						if (instance.pulledAt > 0L && !"debug".equals(instance.acquisitionKind))
+						{
+							recentInstances.add(instance);
+						}
 					}
 				}
 				if (!response.hasMore || response.nextOffset <= offset)
@@ -726,8 +734,17 @@ class HostedSyncService
 			String shownName = summary.playerName == null || summary.playerName.trim().isEmpty()
 				? summary.label : summary.playerName.trim();
 			members.put(shownName, cards);
+			List<HostedCollectionSnapshot.RecentCard> recentCards = new ArrayList<>();
+			for (HostedApiClient.CardInstanceResult instance : recentInstances)
+			{
+				recentCards.add(new HostedCollectionSnapshot.RecentCard(instance.sourceInstanceId,
+					instance.cardName, instance.foil, instance.pulledAt, shownName));
+			}
+			recentMembers.put(shownName,
+				HostedCollectionSnapshot.newestCards(recentCards, MAX_RECENT_CARDS));
 		}
-		return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks, members);
+		return new HostedCollectionSnapshot(current.groupId, groupName, current.rsn, unlocks,
+			members, recentMembers);
 	}
 
 	private void applyHostedResults(HostedProfile current, HostedCollectionSnapshot snapshot,

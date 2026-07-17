@@ -5,6 +5,9 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.List;
@@ -30,9 +33,14 @@ import net.runelite.client.ui.components.IconTextField;
 class GroupmanTcgPanel extends PluginPanel
 {
 	private static final int MAX_RESULTS = 20;
+	private static final DateTimeFormatter RECENT_DATE = DateTimeFormatter.ofPattern("d MMM HH:mm")
+		.withZone(ZoneId.systemDefault());
+	private static final DateTimeFormatter RECENT_TOOLTIP_DATE = DateTimeFormatter.ofPattern("d MMM uuuu HH:mm")
+		.withZone(ZoneId.systemDefault());
 	private final SharedCollectionService collection;
 	private final HostedSyncService hosted;
 	private final TopTrumpsService topTrumps;
+	private final CollectionAlbumManager albums;
 	private final MonsterCardCatalog monsters;
 	private final ItemCardCatalog items;
 	private final IconTextField search = new IconTextField();
@@ -44,11 +52,13 @@ class GroupmanTcgPanel extends PluginPanel
 	private boolean updatingSelector;
 
 	GroupmanTcgPanel(SharedCollectionService collection, HostedSyncService hosted,
-		TopTrumpsService topTrumps, MonsterCardCatalog monsters, ItemCardCatalog items)
+		TopTrumpsService topTrumps, CollectionAlbumManager albums,
+		MonsterCardCatalog monsters, ItemCardCatalog items)
 	{
 		this.collection = collection;
 		this.hosted = hosted;
 		this.topTrumps = topTrumps;
+		this.albums = albums;
 		this.monsters = monsters;
 		this.items = items;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -91,6 +101,8 @@ class GroupmanTcgPanel extends PluginPanel
 		add(Box.createVerticalStrut(6));
 		add(header("Browse collection"));
 		add(collectionSelector);
+		add(Box.createVerticalStrut(4));
+		add(actionButton("Open full collection", this::openFullCollection));
 		add(header("Group status"));
 		add(syncStatus);
 		add(header("Private server"));
@@ -99,6 +111,17 @@ class GroupmanTcgPanel extends PluginPanel
 		add(header("Card lookup"));
 		add(results);
 		refresh();
+	}
+
+	private void openFullCollection()
+	{
+		CollectionChoice selected = (CollectionChoice) collectionSelector.getSelectedItem();
+		if (selected == null)
+		{
+			albums.show("", "Shared collection");
+			return;
+		}
+		albums.show(selected.key, selected.displayName);
 	}
 
 	void refresh()
@@ -368,7 +391,7 @@ class GroupmanTcgPanel extends PluginPanel
 		String query = EntityCardCatalog.normalize(search.getText());
 		if (query.isEmpty())
 		{
-			results.add(muted("Search cards; hover owners for pull details."));
+			showRecentCards();
 		}
 		else
 		{
@@ -396,6 +419,47 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 		results.revalidate();
 		results.repaint();
+	}
+
+	private void showRecentCards()
+	{
+		CollectionChoice choice = (CollectionChoice) collectionSelector.getSelectedItem();
+		boolean shared = choice == null || choice.key.isEmpty();
+		String collectionKey = choice == null ? "" : choice.key;
+		List<HostedCollectionSnapshot.RecentCard> recent = collection.recentCards(collectionKey, MAX_RESULTS);
+		if (recent.isEmpty())
+		{
+			results.add(muted("No dated card pulls available yet."));
+			return;
+		}
+		results.add(muted("Most recent card pulls"));
+		for (HostedCollectionSnapshot.RecentCard card : recent)
+		{
+			results.add(recentCardRow(card, shared));
+		}
+	}
+
+	private JPanel recentCardRow(HostedCollectionSnapshot.RecentCard card, boolean shared)
+	{
+		JPanel row = new JPanel(new BorderLayout());
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		row.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
+		JLabel name = new JLabel(card.cardName() + (card.foil() ? " (foil)" : ""));
+		name.setForeground(card.foil() ? ColorScheme.BRAND_ORANGE : Color.WHITE);
+		row.add(name, BorderLayout.CENTER);
+		JLabel detail = new JLabel(shared ? card.owner() : RECENT_DATE.format(Instant.ofEpochMilli(card.pulledAt())));
+		detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		String tooltip = card.owner() + " - pulled "
+			+ RECENT_TOOLTIP_DATE.format(Instant.ofEpochMilli(card.pulledAt()));
+		if (card.foil())
+		{
+			tooltip += " - foil";
+		}
+		name.setToolTipText(tooltip);
+		detail.setToolTipText(tooltip);
+		row.add(detail, BorderLayout.EAST);
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+		return row;
 	}
 
 	private static void collectMatches(Map<String, Set<String>> destination, String prefix,

@@ -55,6 +55,9 @@ RuneLite review steps that cannot be proven by unit tests.
 - [ ] Verify pack reveal sender/receiver controls and popup queueing.
 - [ ] Verify OSRS TCG card frames, rarity colours, foil animation, pack art, and
   Wiki-art-off fallback at normal RuneLite canvas sizes.
+- [ ] Verify the shared and individual full collection albums, exact player
+  titles, 21-card paging, recent-pull ordering, missing-card dimming, copy/foil
+  counts, search, filters, and Wiki-art-off fallback.
 - [ ] Verify private Worker create, join, label confirmation, approval, revoke,
   invite rotation, offline pack replay, and a second-group rejection.
 - [ ] Verify D1 contains only the expected RuneScape display names and no Jagex
@@ -67,6 +70,8 @@ RuneLite review steps that cannot be proven by unit tests.
 - [ ] Verify plugin shutdown/re-enable, RuneLite restart, and profile switching.
 - [ ] Re-read RuneLite's current rejected/rolled-back list and Jagex client
   rules immediately before submission.
+- [ ] Pre-clear the opt-in HTTPS display-name sync against RuneLite's current
+  rejected-feature note concerning player information exposed over HTTP.
 - [ ] Ask RuneLite reviewers in the development Discord whether the opt-in,
   private-server TCG sync and self-imposed interaction blocking are
   acceptable before opening the submission PR.

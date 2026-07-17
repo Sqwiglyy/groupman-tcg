@@ -98,6 +98,135 @@ class SharedCollectionService
 		return Collections.unmodifiableMap(result);
 	}
 
+	CollectionAlbumSnapshot collectionAlbum(String collectionKey, String displayName)
+	{
+		String requestedKey = collectionKey == null ? "" : EntityCardCatalog.normalize(collectionKey);
+		String localKey = localPlayerName == null ? "" : EntityCardCatalog.normalize(localPlayerName);
+		if (!requestedKey.isEmpty())
+		{
+			if (requestedKey.equals(localKey))
+			{
+				return localAlbum(displayName);
+			}
+			MemberCollection member = memberCollections.get(requestedKey);
+			if (member == null)
+			{
+				return new CollectionAlbumSnapshot(displayName, Collections.emptySet(), Collections.emptyMap());
+			}
+			Map<String, CollectionAlbumSnapshot.Ownership> ownership = new HashMap<>();
+			addHostedOwnership(ownership, member);
+			return new CollectionAlbumSnapshot(member.displayName, member.cards, ownership);
+		}
+
+		if (config.collectionMode() != CollectionMode.GROUP_IRONMAN || !status.isActive())
+		{
+			return localAlbum(displayName);
+		}
+
+		Map<String, CollectionAlbumSnapshot.Ownership> ownership = new HashMap<>();
+		for (Map.Entry<String, MemberCollection> entry : memberCollections.entrySet())
+		{
+			if (!entry.getKey().equals(localKey))
+			{
+				addHostedOwnership(ownership, entry.getValue());
+			}
+		}
+		addLocalOwnership(ownership);
+		return new CollectionAlbumSnapshot(displayName, sharedCards, ownership);
+	}
+
+	private CollectionAlbumSnapshot localAlbum(String displayName)
+	{
+		Map<String, CollectionAlbumSnapshot.Ownership> ownership = new HashMap<>();
+		addLocalOwnership(ownership);
+		return new CollectionAlbumSnapshot(displayName, localCollection.getCards(), ownership);
+	}
+
+	private void addLocalOwnership(Map<String, CollectionAlbumSnapshot.Ownership> destination)
+	{
+		for (LocalCollection.CardInstance instance : localCollection.snapshot().instances())
+		{
+			CollectionAlbumSnapshot.Ownership copy = instance.foil()
+				? new CollectionAlbumSnapshot.Ownership(0, 1)
+				: new CollectionAlbumSnapshot.Ownership(1, 0);
+			destination.merge(instance.normalizedName(), copy,
+				CollectionAlbumSnapshot.Ownership::plus);
+		}
+	}
+
+	private static void addHostedOwnership(
+		Map<String, CollectionAlbumSnapshot.Ownership> destination, MemberCollection member)
+	{
+		for (String cardName : member.cards)
+		{
+			String normalized = EntityCardCatalog.normalize(cardName);
+			HostedCollectionSnapshot.CardDetails detail = member.details.get(normalized);
+			CollectionAlbumSnapshot.Ownership copies;
+			if (detail == null || detail.copies() <= 0)
+			{
+				copies = new CollectionAlbumSnapshot.Ownership(1, 0);
+			}
+			else
+			{
+				int foils = Math.max(0, Math.min(detail.foilCopies(), detail.copies()));
+				copies = new CollectionAlbumSnapshot.Ownership(detail.copies() - foils, foils);
+			}
+			destination.merge(normalized, copies, CollectionAlbumSnapshot.Ownership::plus);
+		}
+	}
+
+	List<HostedCollectionSnapshot.RecentCard> recentCards(String collectionKey, int limit)
+	{
+		String requestedKey = collectionKey == null ? "" : EntityCardCatalog.normalize(collectionKey);
+		String localKey = localPlayerName == null ? "" : EntityCardCatalog.normalize(localPlayerName);
+		if (!requestedKey.isEmpty())
+		{
+			if (requestedKey.equals(localKey))
+			{
+				return recentLocalCards(localPlayerName, limit);
+			}
+			MemberCollection member = memberCollections.get(requestedKey);
+			return member == null ? Collections.emptyList()
+				: HostedCollectionSnapshot.newestCards(member.recentCards, limit);
+		}
+
+		if (config.collectionMode() != CollectionMode.GROUP_IRONMAN || !status.isActive())
+		{
+			return recentLocalCards(localPlayerName, limit);
+		}
+
+		List<HostedCollectionSnapshot.RecentCard> combined = new ArrayList<>();
+		for (Map.Entry<String, MemberCollection> entry : memberCollections.entrySet())
+		{
+			if (!entry.getKey().equals(localKey))
+			{
+				combined.addAll(entry.getValue().recentCards);
+			}
+		}
+		combined.addAll(recentLocalCards(localPlayerName, limit));
+		return HostedCollectionSnapshot.newestCards(combined, limit);
+	}
+
+	private List<HostedCollectionSnapshot.RecentCard> recentLocalCards(String owner, int limit)
+	{
+		List<HostedCollectionSnapshot.RecentCard> recent = new ArrayList<>();
+		for (LocalCollection.CardInstance instance : localCollection.snapshot().instances())
+		{
+			if (instance.pulledAt() <= 0L || isDebugPull(instance.pulledBy()))
+			{
+				continue;
+			}
+			recent.add(new HostedCollectionSnapshot.RecentCard(instance.id(), instance.displayName(),
+				instance.foil(), instance.pulledAt(), owner));
+		}
+		return HostedCollectionSnapshot.newestCards(recent, limit);
+	}
+
+	private static boolean isDebugPull(String pulledBy)
+	{
+		return pulledBy != null && pulledBy.regionMatches(true, 0, "DEBUG_", 0, "DEBUG_".length());
+	}
+
 	List<String> ownersOf(Set<String> cardNames)
 	{
 		List<String> owners = new ArrayList<>();
@@ -291,6 +420,12 @@ class SharedCollectionService
 		if (!snapshot.members().isEmpty())
 		{
 			Map<String, MemberCollection> updated = new HashMap<>();
+			Map<String, List<HostedCollectionSnapshot.RecentCard>> recentByMember = new HashMap<>();
+			for (Map.Entry<String, List<HostedCollectionSnapshot.RecentCard>> entry
+				: snapshot.recentCards().entrySet())
+			{
+				recentByMember.put(EntityCardCatalog.normalize(entry.getKey()), entry.getValue());
+			}
 			for (Map.Entry<String, Map<String, HostedCollectionSnapshot.CardDetails>> entry
 				: snapshot.members().entrySet())
 			{
@@ -299,8 +434,9 @@ class SharedCollectionService
 					continue;
 				}
 				String shownName = entry.getKey().trim();
-				updated.put(EntityCardCatalog.normalize(shownName),
-					new MemberCollection(shownName, entry.getValue().keySet(), entry.getValue()));
+				String memberKey = EntityCardCatalog.normalize(shownName);
+				updated.put(memberKey, new MemberCollection(shownName, entry.getValue().keySet(),
+					entry.getValue(), recentByMember.getOrDefault(memberKey, Collections.emptyList())));
 			}
 			memberCollections = Collections.unmodifiableMap(updated);
 		}
@@ -381,7 +517,8 @@ class SharedCollectionService
 				{
 					String displayName = entry.getKey().trim();
 					members.put(EntityCardCatalog.normalize(displayName),
-						new MemberCollection(displayName, index.decode(entry.getValue()), Collections.emptyMap()));
+						new MemberCollection(displayName, index.decode(entry.getValue()), Collections.emptyMap(),
+							Collections.emptyList()));
 				}
 			}
 			return new LoadedCache(index.decode(cache.unlockBits), members);
@@ -414,6 +551,7 @@ class SharedCollectionService
 		String key = EntityCardCatalog.normalize(shownName);
 		MemberCollection current = memberCollections.get(key);
 		Map<String, HostedCollectionSnapshot.CardDetails> details = new HashMap<>();
+		List<HostedCollectionSnapshot.RecentCard> recentCards = new ArrayList<>();
 		if (current != null)
 		{
 			for (Map.Entry<String, HostedCollectionSnapshot.CardDetails> entry : current.details.entrySet())
@@ -423,14 +561,21 @@ class SharedCollectionService
 					details.put(entry.getKey(), entry.getValue());
 				}
 			}
+			for (HostedCollectionSnapshot.RecentCard recent : current.recentCards)
+			{
+				if (cards.contains(EntityCardCatalog.normalize(recent.cardName())))
+				{
+					recentCards.add(recent);
+				}
+			}
 		}
 		if (current != null && current.displayName.equals(shownName) && current.cards.equals(cards)
-			&& current.details.equals(details))
+			&& current.details.equals(details) && current.recentCards.equals(recentCards))
 		{
 			return false;
 		}
 		Map<String, MemberCollection> updated = new HashMap<>(memberCollections);
-		updated.put(key, new MemberCollection(shownName, cards, details));
+		updated.put(key, new MemberCollection(shownName, cards, details, recentCards));
 		memberCollections = Collections.unmodifiableMap(updated);
 		return true;
 	}
@@ -466,13 +611,16 @@ class SharedCollectionService
 		private final String displayName;
 		private final Set<String> cards;
 		private final Map<String, HostedCollectionSnapshot.CardDetails> details;
+		private final List<HostedCollectionSnapshot.RecentCard> recentCards;
 
 		private MemberCollection(String displayName, Set<String> cards,
-			Map<String, HostedCollectionSnapshot.CardDetails> details)
+			Map<String, HostedCollectionSnapshot.CardDetails> details,
+			List<HostedCollectionSnapshot.RecentCard> recentCards)
 		{
 			this.displayName = displayName;
 			this.cards = Collections.unmodifiableSet(new HashSet<>(cards));
 			this.details = Collections.unmodifiableMap(new HashMap<>(details));
+			this.recentCards = HostedCollectionSnapshot.newestCards(recentCards, recentCards.size());
 		}
 	}
 

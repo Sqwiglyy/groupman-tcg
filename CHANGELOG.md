@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Open the selected shared or player collection in a full, resizable OSRS TCG-style
+  album with card faces, missing-card dimming, copy/foil counts, search, filters,
+  sorting, and 21-card paging.
+- Show the selected collection's 20 most recent non-debug card pulls when the
+  sidebar search field is empty, retaining duplicates and foil markers.
 - Delay remote pack previews until at least 15 seconds after the server receives
   the opening, while continuing to suppress the preview on the opener's client.
 - Show the opener's approved RuneScape display name in remote pack previews.

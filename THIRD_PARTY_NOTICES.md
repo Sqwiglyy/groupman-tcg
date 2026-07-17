@@ -37,9 +37,11 @@ read-only with OSRS TCG's profile-scoped state. The bundled
 `Card.json` at commit `ffb5290402853d3254e803f2661a40602216ad9d`.
 
 `OsrsTcgCardRenderer.java` is adapted from OSRS TCG's
-`SharedCardRenderer.java`, and the namespaced `Cardback.png`, `lock.png`, and
-`Pack_Standard.png` files are copied from the RuneLite Plugin Hub version of
-OSRS TCG at commit `2835bddd0bf5de6d2319e98a4bdd8d932a585795`.
+`SharedCardRenderer.java`; the full collection album layout is adapted from its
+`CollectionAlbumWindow.java` and `CollectionAlbumGridPanel.java`; and the
+namespaced `Cardback.png`, `lock.png`, and `Pack_Standard.png` files are copied
+from the RuneLite Plugin Hub version of OSRS TCG at commit
+`2835bddd0bf5de6d2319e98a4bdd8d932a585795`.
 Those source and asset files are redistributed under the following licence:
 
 BSD 2-Clause License
