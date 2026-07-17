@@ -34,7 +34,8 @@ release checks in `PLUGIN_HUB_CHECKLIST.md` pass.
   does not receive RuneScape names, GIM names, raw OSRS TCG instance IDs, bank
   contents, inventory contents, chat, location, gear, stats, or credentials.
 - Each self-hosted Worker is claimable by one group and limited to five active
-  members.
+  members. First creation additionally requires a private encrypted Worker
+  setup key; the plugin sends it only in that create request and never saves it.
 - Optional Wiki artwork loading is off by default and limited to the fixed OSRS
   Wiki image origin.
 

@@ -43,14 +43,15 @@ public class HostedApiClientTest
 	}
 
 	@Test
-	public void createsGroupWithoutSendingRuneScapeIdentityOrAuthorization() throws Exception
+	public void createsGroupWithSetupHeaderButNoIdentityOrAuthorization() throws Exception
 	{
 		server.enqueue(201, "{\"group\":{\"id\":\"group-1\"},"
 			+ "\"member\":{\"id\":\"member-1\",\"label\":\"Owner\",\"role\":\"owner\","
 			+ "\"status\":\"approved\",\"token\":\"secret-token\"},"
 			+ "\"invite\":{\"code\":\"ABCD-EFGH-JK23\",\"expiresAt\":1234}}");
 
-		HostedApiClient.CreateResponse response = api.createGroup();
+		String setupKey = "example-private-setup-key-1234";
+		HostedApiClient.CreateResponse response = api.createGroup(setupKey);
 		assertEquals("group-1", response.group.id);
 		assertEquals("secret-token", response.member.token);
 
@@ -58,7 +59,9 @@ public class HostedApiClientTest
 		assertEquals("/v1/groups", request.path);
 		assertEquals("POST", request.method);
 		assertNull(request.header("Authorization"));
+		assertEquals(setupKey, request.header("X-Groupman-Setup-Key"));
 		assertEquals("{}", request.body);
+		assertFalse(request.body.contains(setupKey));
 		assertFalse(request.body.contains("rsn"));
 		assertFalse(request.body.contains("groupName"));
 	}

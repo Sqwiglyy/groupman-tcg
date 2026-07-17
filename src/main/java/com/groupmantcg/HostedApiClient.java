@@ -43,15 +43,15 @@ class HostedApiClient
 		this.fixedBaseUrl = parseBaseUrl(baseUrl);
 	}
 
-	CreateResponse createGroup() throws IOException
+	CreateResponse createGroup(String setupKey) throws IOException
 	{
-		return createGroupAt(configuredBaseUrl());
+		return createGroupAt(configuredBaseUrl(), setupKey);
 	}
 
-	CreateResponse createGroupAt(String serverUrl) throws IOException
+	CreateResponse createGroupAt(String serverUrl, String setupKey) throws IOException
 	{
-		return call("POST", url(serverUrl, "v1", "groups"), Collections.emptyMap(), null,
-			CreateResponse.class);
+		return call("POST", url(serverUrl, "v1", "groups"), new EmptyRequest(), null,
+			CreateResponse.class, setupKey);
 	}
 
 	JoinResponse joinGroup(String groupId, String inviteCode) throws IOException
@@ -73,19 +73,19 @@ class HostedApiClient
 	void approveMember(HostedProfile profile, String memberId) throws IOException
 	{
 		call("POST", url(profile, "v1", "groups", profile.groupId, "members", memberId),
-			Collections.emptyMap(), profile, EmptyResponse.class);
+			new EmptyRequest(), profile, EmptyResponse.class);
 	}
 
 	void revokeMember(HostedProfile profile, String memberId) throws IOException
 	{
 		call("DELETE", url(profile, "v1", "groups", profile.groupId, "members", memberId),
-			Collections.emptyMap(), profile, EmptyResponse.class);
+			new EmptyRequest(), profile, EmptyResponse.class);
 	}
 
 	InviteResponse rotateInvite(HostedProfile profile) throws IOException
 	{
 		return call("POST", url(profile, "v1", "groups", profile.groupId, "invite"),
-			Collections.emptyMap(), profile, InviteResponse.class);
+			new EmptyRequest(), profile, InviteResponse.class);
 	}
 
 	void uploadMemberCollection(HostedProfile profile, String snapshotId,
@@ -198,10 +198,20 @@ class HostedApiClient
 	private <T> T call(String method, HttpUrl url, Object body, HostedProfile profile,
 		Class<T> responseType) throws IOException
 	{
+		return call(method, url, body, profile, responseType, null);
+	}
+
+	private <T> T call(String method, HttpUrl url, Object body, HostedProfile profile,
+		Class<T> responseType, String setupKey) throws IOException
+	{
 		Request.Builder request = new Request.Builder()
 			.url(url)
 			.header("Accept", "application/json")
 			.header("User-Agent", "Groupman-TCG/0.1.0");
+		if (setupKey != null && !setupKey.isEmpty())
+		{
+			request.header("X-Groupman-Setup-Key", setupKey);
+		}
 		if (profile != null)
 		{
 			request.header("Authorization", "Bearer " + profile.token);
@@ -444,6 +454,10 @@ class HostedApiClient
 	}
 
 	private static final class EmptyResponse
+	{
+	}
+
+	private static final class EmptyRequest
 	{
 	}
 }

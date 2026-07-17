@@ -17,6 +17,7 @@ tests before release.
 | Pack contents | Yes | Card name/foil/new flags | Card name/foil/new flags and time | Never |
 | Original-puller label | Local display only | Never | Never | Never |
 | Raw OSRS TCG instance ID | Local only | Never | Never; SHA-256-derived opaque ID only | Never |
+| Worker setup key | Held only for the create request; never saved | Never | Received once over HTTPS; encrypted Worker secret, never D1 | Never |
 | Groupman bearer token/invite | Local token/invite as needed | Never | Received over HTTPS; only hashes stored in D1 | Never |
 | Card artwork request | Cached locally when opted in | Never | Never | Fixed image URL and connection metadata |
 
@@ -30,6 +31,8 @@ the names to its own custom message fields.
 - Card artwork downloads are disabled by default.
 - A hosted profile token is bound to its issuing Worker URL.
 - An old token without an issuing URL is discarded instead of being redirected.
+- The setup key is entered only for first group creation and is not persisted
+  in the RuneLite profile.
 - Worker observability is disabled by the reusable server template.
 - Worker error logs do not include exception objects or request data.
 

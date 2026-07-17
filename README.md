@@ -57,13 +57,17 @@ collections:
 
 1. One teammate deploys the
    [Groupman TCG Server](https://github.com/Sqwiglyy/groupman-tcg-server) to
-   their own Cloudflare account.
+   their own Cloudflare account, configures its encrypted `SETUP_KEY`, and
+   keeps that key private.
 2. Open `https://YOUR-WORKER.workers.dev/health` and confirm it returns
-   `{"status":"ok"}`. Copy the root URL without `/health`.
+   `{"status":"ok",...,"version":3,"setupReady":true}`. Copy the root URL
+   without `/health`.
 3. Every teammate enables **Hosted offline sync** and enters that identical
    root URL under **Hosted server URL**.
 4. The owner logs into their GIM/HCGIM character, opens the Groupman TCG
-   sidebar, and selects **Create hosted group**.
+   sidebar, selects **Create hosted group**, and enters the Worker's setup key
+   once. The plugin sends it only to that Worker over HTTPS and does not save
+   it.
 5. The owner sends the displayed group ID and invite code privately to each
    teammate. Do not share bearer tokens or post join details publicly.
 6. Each teammate selects **Join hosted group** and enters the group ID and
@@ -78,6 +82,8 @@ collections:
 
 Invites last 30 days and can be rotated by the owner. A revoked member loses
 API access; permanent grow-only unlocks remain in the group collection.
+Only the person creating the group needs the setup key. Friends join with the
+group ID and invite code and should never receive the setup key.
 
 ## Privacy and network behaviour
 
@@ -97,6 +103,7 @@ party member's display name to the other members of that Party.
 
 When hosted sync is explicitly enabled, the selected Worker receives only:
 
+- the one-time setup key during the owner's first group-creation request;
 - random group and member IDs plus generic labels such as `Owner` and
   `Member A1B2C3`;
 - Groupman TCG bearer tokens and invite codes over HTTPS for authentication;
@@ -110,6 +117,10 @@ equipment contents, world, location, clan data, or chat. The bearer token is a
 Groupman TCG credential stored in the local RuneLite profile and is always
 bound to the Worker that issued it. The Worker stores only SHA-256 hashes of
 bearer tokens and invite codes in D1.
+
+The setup key is not stored by the plugin or D1. It is held as an encrypted
+secret in the group owner's Cloudflare Worker and stops authorizing creation
+once that Worker's single group has been claimed.
 
 Cloudflare necessarily processes connection metadata such as IP addresses when
 a client connects. The Worker code does not deliberately log or store IP
@@ -125,6 +136,19 @@ enabled. Requests go only to fixed OSRS Wiki image URLs; the Wiki can then see
 the connecting IP address and requested image URL. No RuneScape identity is
 included in those requests. Card frames and names still work when artwork is
 disabled or unavailable.
+
+## Visual assets and attribution
+
+Pack reveals and Top Trumps use RuneLite's bundled RuneScape-style fonts. The
+mini-card frames, borders, foil treatment, badges, lock markers, and layouts are
+drawn by Groupman TCG itself; the plugin does not copy OSRS TCG's card-back,
+pack artwork, or full card-frame renderer. The bundled card catalog is an
+unmodified, BSD-licensed snapshot of OSRS TCG's public `Card.json`, with full
+attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+When artwork downloads are explicitly enabled, the picture inside a mini-card
+is the OSRS item/NPC image referenced by that catalog and fetched from the OSRS
+Wiki. No PNG, JPG, or font files are bundled in this repository.
 
 ## Restriction coverage
 
@@ -182,7 +206,11 @@ Man Standing matches unless that safety option is disabled.
 - **Live updates are missing:** all members must be in the same RuneLite Party
   and use compatible plugin/card-catalog versions.
 - **Hosted setup fails:** enable hosted sync, use the exact same HTTPS Worker
-  root URL on every client, and confirm `/health` returns `ok`.
+  root URL on every client, and confirm `/health` returns `ok` with
+  `setupReady:true`.
+- **Create says the setup key is missing or incorrect:** the owner must use the
+  exact `SETUP_KEY` stored as an encrypted secret on that Worker. Friends do
+  not use this key.
 - **A member remains pending:** the owner must confirm the member's private
   label out of band and approve it in the sidebar.
 - **The Worker says it is claimed:** each deployment intentionally supports one

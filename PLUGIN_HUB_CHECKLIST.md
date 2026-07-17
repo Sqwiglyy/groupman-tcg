@@ -17,6 +17,8 @@ RuneLite review steps that cannot be proven by unit tests.
   privacy, and troubleshooting instructions.
 - [x] Hosted backend and artwork network features are opt-in.
 - [x] Hosted API payloads omit RuneScape/GIM identity and original-puller names.
+- [x] First group creation requires a private Worker setup key that is sent in
+  a header, never in the JSON body, and is not stored by the plugin.
 - [x] Plugin tests run without the removed MockWebServer dependency.
 - [x] GitHub Actions rebuilds with Java 11 and rejects tracked production
   Worker URLs.
@@ -31,10 +33,11 @@ RuneLite review steps that cannot be proven by unit tests.
 - [x] Confirmed the production D1 database contained zero groups, members,
   packs, or card instances before migration.
 - [x] Exported and checksummed an off-OneDrive pre-v2 database backup.
-- [x] Applied migrations 0003 and 0004 and deployed Worker API v2 with
+- [x] Applied migrations 0003 and 0004 and deployed Worker API v3 with
   observability disabled.
-- [x] Verified `/health` reports v2 and the final production schema contains no
-  RuneScape display-name or original-puller columns.
+- [x] Verified `/health` reports v3, setup protection is ready, and the final
+  production schema contains no RuneScape display-name or original-puller
+  columns.
 
 ## Manual release checks
 

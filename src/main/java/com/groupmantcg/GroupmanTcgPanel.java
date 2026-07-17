@@ -5,6 +5,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
@@ -18,6 +19,7 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -209,12 +211,22 @@ class GroupmanTcgPanel extends PluginPanel
 
 	private void createHostedGroup()
 	{
-		int choice = JOptionPane.showConfirmDialog(this,
-			"Create the single private group on this Worker? No RuneScape name or GIM name will be uploaded.",
+		JPasswordField setupKey = new JPasswordField();
+		JPanel form = body();
+		form.add(new JLabel("Worker setup key"));
+		form.add(setupKey);
+		form.add(Box.createVerticalStrut(6));
+		form.add(muted("Used once to claim this private Worker; never saved by the plugin."));
+		form.add(muted("No RuneScape name or GIM name will be uploaded."));
+		int choice = JOptionPane.showConfirmDialog(this, form,
 			"Create private hosted group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
-			hosted.createGroup(this::actionFinished);
+			char[] password = setupKey.getPassword();
+			String value = new String(password);
+			Arrays.fill(password, '\0');
+			setupKey.setText("");
+			hosted.createGroup(value, this::actionFinished);
 		}
 	}
 

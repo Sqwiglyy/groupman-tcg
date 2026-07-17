@@ -175,12 +175,18 @@ class HostedSyncService
 		return status;
 	}
 
-	void createGroup(ActionCallback callback)
+	void createGroup(String setupKey, ActionCallback callback)
 	{
 		PlayerContext currentContext = context;
+		String cleanSetupKey = setupKey == null ? "" : setupKey.trim();
 		if (!currentContext.ready())
 		{
 			complete(callback, "Log into the Group Ironman account first.");
+			return;
+		}
+		if (cleanSetupKey.length() < 16 || cleanSetupKey.length() > 256)
+		{
+			complete(callback, "Enter this Worker's private setup key (16 to 256 characters).");
 			return;
 		}
 		String selectedServer;
@@ -195,7 +201,7 @@ class HostedSyncService
 		}
 		runAction(callback, () ->
 		{
-			HostedApiClient.CreateResponse response = api.createGroupAt(selectedServer);
+			HostedApiClient.CreateResponse response = api.createGroupAt(selectedServer, cleanSetupKey);
 			if (response.group == null || response.member == null || response.invite == null)
 			{
 				throw new IOException("The hosted service returned an incomplete group");

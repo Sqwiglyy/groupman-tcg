@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.0-rc.2 - 2026-07-17
+
+- Protect first hosted-group creation with a private Worker setup key sent only
+  in the create-request header and never stored by the plugin.
+- Add an owner-only password prompt plus setup, privacy, and troubleshooting
+  documentation for the API v3 backend.
+- Document the visual boundary: RuneLite fonts, custom mini-card frames, an
+  attributed OSRS TCG catalog snapshot, and opt-in OSRS Wiki artwork.
+
 ## v0.1.0-rc.1 - 2026-07-17
 
 - Made a group-owned, self-hosted Cloudflare Worker URL mandatory for new
