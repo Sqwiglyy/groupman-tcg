@@ -32,7 +32,7 @@ import net.runelite.client.party.WSClient;
 @Singleton
 class SharedCollectionService
 {
-	private static final int PROTOCOL = 2;
+	private static final int PROTOCOL = 3;
 	private static final String CACHE_KEY = "sharedCollectionV1";
 	private static final int REFRESH_TICKS = 5;
 	private static final int REANNOUNCE_TICKS = 100;
@@ -176,7 +176,7 @@ class SharedCollectionService
 			if (hosted != null)
 			{
 				details.add(describe(owner, hosted.copies(), hosted.foilCopies(), hosted.debugCopies(),
-					hosted.pulledBy(), hosted.firstPulledAt()));
+					Collections.emptySet(), hosted.firstPulledAt()));
 			}
 			else
 			{
@@ -246,12 +246,6 @@ class SharedCollectionService
 		return member;
 	}
 
-	boolean isVerifiedRosterMember(String displayName)
-	{
-		return started && status.isActive() && displayName != null
-			&& roster.contains(EntityCardCatalog.normalize(displayName));
-	}
-
 	void onTick()
 	{
 		if (started && ++ticks % REFRESH_TICKS == 0)
@@ -307,11 +301,11 @@ class SharedCollectionService
 		for (Map.Entry<String, Map<String, HostedCollectionSnapshot.CardDetails>> entry
 			: snapshot.members().entrySet())
 		{
-			String memberKey = EntityCardCatalog.normalize(entry.getKey());
-			if (!roster.contains(memberKey))
+			if (entry.getKey() == null || entry.getKey().trim().isEmpty())
 			{
 				continue;
 			}
+			String memberKey = EntityCardCatalog.normalize(entry.getKey());
 			incomingHostedMembers.add(memberKey);
 			Set<String> cards = new HashSet<>(entry.getValue().keySet());
 			changed |= setMemberCollection(entry.getKey(), cards, entry.getValue());
@@ -384,7 +378,7 @@ class SharedCollectionService
 			return;
 		}
 
-		String discoveredKey = EntityCardCatalog.normalize(settings.getName());
+		String discoveredKey = PrivacyIdentifiers.groupKey(settings.getName());
 		if (!discoveredKey.equals(groupKey))
 		{
 			groupKey = discoveredKey;
@@ -454,7 +448,7 @@ class SharedCollectionService
 		String senderName = EntityCardCatalog.normalize(sender.getDisplayName());
 		if (!roster.contains(senderName))
 		{
-			log.debug("Rejected group snapshot from non-roster member {}", senderName);
+			log.debug("Rejected group snapshot from a non-roster party member");
 			return;
 		}
 
@@ -634,7 +628,7 @@ class SharedCollectionService
 		Map<String, MemberCollection> retained = new HashMap<>();
 		for (Map.Entry<String, MemberCollection> entry : memberCollections.entrySet())
 		{
-			if (roster.contains(entry.getKey()))
+			if (roster.contains(entry.getKey()) || hostedMembers.contains(entry.getKey()))
 			{
 				retained.put(entry.getKey(), entry.getValue());
 			}

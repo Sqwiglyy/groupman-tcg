@@ -1,11 +1,19 @@
 package com.groupmantcg;
 
 import com.google.gson.Gson;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,78 +26,98 @@ import static org.junit.Assert.fail;
 
 public class HostedApiClientTest
 {
-	private MockWebServer server;
+	private TestHttpServer server;
 	private HostedApiClient api;
 
 	@Before
 	public void setUp() throws Exception
 	{
-		server = new MockWebServer();
-		server.start();
-		api = new HostedApiClient(new OkHttpClient(), new Gson(), server.url("/").toString());
+		server = new TestHttpServer();
+		api = new HostedApiClient(new OkHttpClient(), new Gson(), server.baseUrl());
 	}
 
 	@After
-	public void tearDown() throws Exception
+	public void tearDown()
 	{
-		server.shutdown();
+		server.close();
 	}
 
 	@Test
-	public void createsGroupWithoutLeakingAnAuthorizationHeader() throws Exception
+	public void createsGroupWithoutSendingRuneScapeIdentityOrAuthorization() throws Exception
 	{
-		server.enqueue(json(201, "{\"group\":{\"id\":\"group-1\",\"displayName\":\"Sqwiggles\"},"
-			+ "\"member\":{\"id\":\"member-1\",\"rsn\":\"Sqwiglyy\",\"role\":\"owner\","
+		server.enqueue(201, "{\"group\":{\"id\":\"group-1\"},"
+			+ "\"member\":{\"id\":\"member-1\",\"label\":\"Owner\",\"role\":\"owner\","
 			+ "\"status\":\"approved\",\"token\":\"secret-token\"},"
-			+ "\"invite\":{\"code\":\"ABCD-EFGH-JK23\",\"expiresAt\":1234}}"));
+			+ "\"invite\":{\"code\":\"ABCD-EFGH-JK23\",\"expiresAt\":1234}}");
 
-		HostedApiClient.CreateResponse response = api.createGroup("Sqwiggles", "Sqwiglyy");
+		HostedApiClient.CreateResponse response = api.createGroup();
 		assertEquals("group-1", response.group.id);
 		assertEquals("secret-token", response.member.token);
 
-		RecordedRequest request = server.takeRequest();
-		assertEquals("/v1/groups", request.getPath());
-		assertEquals("POST", request.getMethod());
-		assertNull(request.getHeader("Authorization"));
-		assertTrue(request.getBody().readUtf8().contains("\"ownerRsn\":\"Sqwiglyy\""));
+		CapturedRequest request = server.takeRequest();
+		assertEquals("/v1/groups", request.path);
+		assertEquals("POST", request.method);
+		assertNull(request.header("Authorization"));
+		assertEquals("{}", request.body);
+		assertFalse(request.body.contains("rsn"));
+		assertFalse(request.body.contains("groupName"));
 	}
 
 	@Test
 	public void authenticatesSyncAndParsesMissedPacks() throws Exception
 	{
-		server.enqueue(json(200, "{\"nextCursor\":9,\"hasMore\":false,\"events\":[{"
-			+ "\"sequence\":9,\"eventId\":\"pack_9\",\"member\":{\"id\":\"other\",\"rsn\":\"Mate\"},"
+		server.enqueue(200, "{\"nextCursor\":9,\"hasMore\":false,\"events\":[{"
+			+ "\"sequence\":9,\"eventId\":\"pack_9\",\"member\":{\"id\":\"other\",\"label\":\"Member 123456\"},"
 			+ "\"cards\":[{\"name\":\"Great Olm\",\"foil\":true,\"isNew\":true}]}],"
-			+ "\"collection\":{\"version\":4,\"changed\":true,\"unlocks\":[\"Great Olm\"]}}"));
+			+ "\"collection\":{\"version\":4,\"changed\":true,\"unlocks\":[\"Great Olm\"]}}");
 
 		HostedApiClient.SyncResponse response = api.sync(profile(), 7L, 3L);
 		assertEquals(9L, response.nextCursor);
 		assertFalse(response.hasMore);
+		assertEquals("Member 123456", response.events.get(0).member.label);
 		assertEquals("Great Olm", response.events.get(0).cards.get(0).name);
 
-		RecordedRequest request = server.takeRequest();
-		assertEquals("Bearer member-token", request.getHeader("Authorization"));
-		assertTrue(request.getPath().startsWith("/v1/groups/group-1/sync?"));
-		assertTrue(request.getRequestUrl().queryParameter("after").equals("7"));
-		assertTrue(request.getRequestUrl().queryParameter("collectionVersion").equals("3"));
+		CapturedRequest request = server.takeRequest();
+		assertEquals("Bearer member-token", request.header("Authorization"));
+		assertTrue(request.path.startsWith("/v1/groups/group-1/sync?"));
+		assertTrue(request.path.contains("after=7"));
+		assertTrue(request.path.contains("collectionVersion=3"));
 	}
 
 	@Test
-	public void uploadsExactCardProvenanceAndSurfacesApiErrors() throws Exception
+	public void joinsWithoutSendingTheLocalRuneScapeName() throws Exception
 	{
-		server.enqueue(json(200, "{\"accepted\":1}"));
+		server.enqueue(202, "{\"member\":{\"id\":\"member-2\",\"groupId\":\"group-1\","
+			+ "\"label\":\"Member 123456\",\"role\":\"member\",\"status\":\"pending\","
+			+ "\"token\":\"secret-token\"}}");
+
+		HostedApiClient.JoinResponse response = api.joinGroup("group-1", "ABCD-EFGH-JK23");
+		assertEquals("Member 123456", response.member.label);
+
+		CapturedRequest request = server.takeRequest();
+		assertTrue(request.body.contains("\"groupId\":\"group-1\""));
+		assertTrue(request.body.contains("\"inviteCode\":\"ABCD-EFGH-JK23\""));
+		assertFalse(request.body.toLowerCase().contains("rsn"));
+		assertFalse(request.body.contains("local-only-name"));
+	}
+
+	@Test
+	public void uploadsOnlyRequiredCardProvenanceAndSurfacesApiErrors() throws Exception
+	{
+		server.enqueue(200, "{\"accepted\":1}");
 		api.uploadMemberCollection(profile(), "snapshot_123", List.of(
-			new HostedApiClient.CardInstanceUpload("instance-1", "Great Olm", true, "Sqwiglyy", 1000L)), true);
+			new HostedApiClient.CardInstanceUpload("i_opaque", "Great Olm", true, false, 1000L)), true);
 
-		RecordedRequest request = server.takeRequest();
-		String body = request.getBody().readUtf8();
-		assertEquals("/v1/groups/group-1/member-collection", request.getPath());
-		assertTrue(body.contains("\"sourceInstanceId\":\"instance-1\""));
-		assertTrue(body.contains("\"foil\":true"));
-		assertTrue(body.contains("\"complete\":true"));
+		CapturedRequest request = server.takeRequest();
+		assertEquals("/v1/groups/group-1/member-collection", request.path);
+		assertTrue(request.body.contains("\"sourceInstanceId\":\"i_opaque\""));
+		assertTrue(request.body.contains("\"foil\":true"));
+		assertTrue(request.body.contains("\"debug\":false"));
+		assertFalse(request.body.contains("pulledBy"));
+		assertFalse(request.body.contains("Sqwiglyy"));
 
-		server.enqueue(json(403, "{\"error\":{\"code\":\"approval_required\","
-			+ "\"message\":\"Owner approval required\"}}"));
+		server.enqueue(403, "{\"error\":{\"code\":\"approval_required\","
+			+ "\"message\":\"Owner approval required\"}}");
 		try
 		{
 			api.getGroup(profile());
@@ -106,41 +134,39 @@ public class HostedApiClientTest
 	@Test
 	public void revokesOnlyTheSelectedHostedMember() throws Exception
 	{
-		server.enqueue(json(200, "{\"memberId\":\"member-2\",\"revokedAt\":1234}"));
+		server.enqueue(200, "{\"memberId\":\"member-2\",\"revokedAt\":1234}");
 		api.revokeMember(profile(), "member-2");
 
-		RecordedRequest request = server.takeRequest();
-		assertEquals("DELETE", request.getMethod());
-		assertEquals("/v1/groups/group-1/members/member-2", request.getPath());
-		assertEquals("Bearer member-token", request.getHeader("Authorization"));
+		CapturedRequest request = server.takeRequest();
+		assertEquals("DELETE", request.method);
+		assertEquals("/v1/groups/group-1/members/member-2", request.path);
+		assertEquals("Bearer member-token", request.header("Authorization"));
 	}
 
 	@Test
 	public void keepsAStoredTokenBoundToTheServerThatIssuedIt() throws Exception
 	{
-		try (MockWebServer configuredServer = new MockWebServer();
-			 MockWebServer profileServer = new MockWebServer())
+		try (TestHttpServer configuredServer = new TestHttpServer();
+			 TestHttpServer profileServer = new TestHttpServer())
 		{
-			configuredServer.start();
-			profileServer.start();
 			GroupmanTcgConfig customConfig = new GroupmanTcgConfig()
 			{
 				@Override
 				public String hostedServerUrl()
 				{
-					return configuredServer.url("/").toString();
+					return configuredServer.baseUrl();
 				}
 			};
 			HostedApiClient configuredApi = new HostedApiClient(new OkHttpClient(), new Gson(), customConfig);
 			HostedProfile profile = profile();
-			profile.serverUrl = profileServer.url("/").toString();
-			profileServer.enqueue(json(200, "{\"group\":{\"id\":\"group-1\"},\"members\":[]}"));
+			profile.serverUrl = profileServer.baseUrl();
+			profileServer.enqueue(200, "{\"group\":{\"id\":\"group-1\"},\"members\":[]}");
 
 			configuredApi.getGroup(profile);
 
-			RecordedRequest request = profileServer.takeRequest();
-			assertEquals("Bearer member-token", request.getHeader("Authorization"));
-			assertEquals(0, configuredServer.getRequestCount());
+			CapturedRequest request = profileServer.takeRequest();
+			assertEquals("Bearer member-token", request.header("Authorization"));
+			assertEquals(0, configuredServer.requestCount());
 		}
 	}
 
@@ -166,6 +192,8 @@ public class HostedApiClientTest
 		};
 
 		assertEquals("", config.hostedServerUrl());
+		assertFalse(config.hostedSyncEnabled());
+		assertFalse(config.downloadCardArt());
 	}
 
 	private static HostedProfile profile()
@@ -173,17 +201,117 @@ public class HostedApiClientTest
 		HostedProfile profile = new HostedProfile();
 		profile.groupId = "group-1";
 		profile.memberId = "member-1";
-		profile.rsn = "Sqwiglyy";
+		profile.rsn = "local-only-name";
 		profile.role = "owner";
 		profile.status = "approved";
 		profile.token = "member-token";
 		return profile;
 	}
 
-	private static MockResponse json(int status, String body)
+	private static final class TestHttpServer implements AutoCloseable
 	{
-		return new MockResponse().setResponseCode(status)
-			.setHeader("content-type", "application/json")
-			.setBody(body);
+		private final HttpServer server;
+		private final Queue<ResponseSpec> responses = new ArrayDeque<>();
+		private final LinkedBlockingQueue<CapturedRequest> requests = new LinkedBlockingQueue<>();
+
+		private TestHttpServer() throws IOException
+		{
+			server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+			server.createContext("/", this::handle);
+			server.start();
+		}
+
+		private String baseUrl()
+		{
+			return "http://127.0.0.1:" + server.getAddress().getPort() + "/";
+		}
+
+		private synchronized void enqueue(int status, String body)
+		{
+			responses.add(new ResponseSpec(status, body));
+		}
+
+		private CapturedRequest takeRequest() throws InterruptedException
+		{
+			CapturedRequest request = requests.poll(5, TimeUnit.SECONDS);
+			if (request == null)
+			{
+				fail("Timed out waiting for HTTP request");
+			}
+			return request;
+		}
+
+		private int requestCount()
+		{
+			return requests.size();
+		}
+
+		private void handle(HttpExchange exchange) throws IOException
+		{
+			byte[] requestBody = exchange.getRequestBody().readAllBytes();
+			requests.add(new CapturedRequest(exchange.getRequestMethod(),
+				exchange.getRequestURI().toString(), new String(requestBody, StandardCharsets.UTF_8),
+				exchange.getRequestHeaders()));
+			ResponseSpec response;
+			synchronized (this)
+			{
+				response = responses.poll();
+			}
+			if (response == null)
+			{
+				response = new ResponseSpec(500, "{\"error\":{\"message\":\"No test response queued\"}}");
+			}
+			byte[] bytes = response.body.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().set("Content-Type", "application/json");
+			exchange.sendResponseHeaders(response.status, bytes.length);
+			exchange.getResponseBody().write(bytes);
+			exchange.close();
+		}
+
+		@Override
+		public void close()
+		{
+			server.stop(0);
+		}
+	}
+
+	private static final class CapturedRequest
+	{
+		private final String method;
+		private final String path;
+		private final String body;
+		private final Map<String, List<String>> headers;
+
+		private CapturedRequest(String method, String path, String body, Map<String, List<String>> headers)
+		{
+			this.method = method;
+			this.path = path;
+			this.body = body;
+			this.headers = headers;
+		}
+
+		private String header(String name)
+		{
+			for (Map.Entry<String, List<String>> entry : headers.entrySet())
+			{
+				if (entry.getKey().equalsIgnoreCase(name) && !entry.getValue().isEmpty())
+				{
+					return entry.getValue().get(0);
+				}
+			}
+			return null;
+		}
+	}
+
+	private static final class ResponseSpec
+	{
+		private final int status;
+		private final String body;
+
+		private ResponseSpec(int status, String body)
+		{
+			this.status = status;
+			this.body = body;
+		}
 	}
 }

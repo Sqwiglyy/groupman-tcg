@@ -3,7 +3,6 @@ package com.groupmantcg;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -51,10 +50,9 @@ final class HostedCollectionSnapshot
 		private final int debugCopies;
 		private final long firstPulledAt;
 		private final long lastPulledAt;
-		private final Set<String> pulledBy;
 
 		CardDetails(String cardName, int copies, int foilCopies, int debugCopies,
-			long firstPulledAt, long lastPulledAt, Set<String> pulledBy)
+			long firstPulledAt, long lastPulledAt)
 		{
 			this.cardName = cardName;
 			this.copies = copies;
@@ -62,7 +60,6 @@ final class HostedCollectionSnapshot
 			this.debugCopies = debugCopies;
 			this.firstPulledAt = firstPulledAt;
 			this.lastPulledAt = lastPulledAt;
-			this.pulledBy = Collections.unmodifiableSet(new LinkedHashSet<>(pulledBy));
 		}
 
 		String cardName() { return cardName; }
@@ -71,7 +68,6 @@ final class HostedCollectionSnapshot
 		int debugCopies() { return debugCopies; }
 		long firstPulledAt() { return firstPulledAt; }
 		long lastPulledAt() { return lastPulledAt; }
-		Set<String> pulledBy() { return pulledBy; }
 
 		@Override
 		public boolean equals(Object other)
@@ -87,15 +83,14 @@ final class HostedCollectionSnapshot
 			CardDetails that = (CardDetails) other;
 			return copies == that.copies && foilCopies == that.foilCopies
 				&& debugCopies == that.debugCopies && firstPulledAt == that.firstPulledAt
-				&& lastPulledAt == that.lastPulledAt && Objects.equals(cardName, that.cardName)
-				&& pulledBy.equals(that.pulledBy);
+				&& lastPulledAt == that.lastPulledAt && Objects.equals(cardName, that.cardName);
 		}
 
 		@Override
 		public int hashCode()
 		{
 			return Objects.hash(cardName, copies, foilCopies, debugCopies,
-				firstPulledAt, lastPulledAt, pulledBy);
+				firstPulledAt, lastPulledAt);
 		}
 	}
 }

@@ -6,6 +6,7 @@ final class HostedProfile
 	String groupId;
 	String groupName;
 	String memberId;
+	String memberLabel;
 	String rsn;
 	String role;
 	String status;

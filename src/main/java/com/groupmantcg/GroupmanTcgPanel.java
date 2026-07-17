@@ -160,6 +160,10 @@ class GroupmanTcgPanel extends PluginPanel
 			JLabel id = muted("Group ID: " + abbreviated(current.groupId()));
 			id.setToolTipText(current.groupId());
 			hostedActions.add(id);
+			if (!current.memberLabel().isEmpty())
+			{
+				hostedActions.add(muted("Your private label: " + current.memberLabel()));
+			}
 			if (current.owner())
 			{
 				if (!current.inviteCode().isEmpty())
@@ -177,22 +181,16 @@ class GroupmanTcgPanel extends PluginPanel
 					if (member.pending())
 					{
 						hostedActions.add(Box.createVerticalStrut(4));
-						if (collection.isVerifiedRosterMember(member.rsn()))
-						{
-							hostedActions.add(actionButton("Approve " + member.rsn(), () -> approve(member)));
-						}
-						else
-						{
-							JLabel warning = muted(member.rsn() + " is not on the GIM roster");
-							warning.setForeground(ColorScheme.PROGRESS_ERROR_COLOR);
-							hostedActions.add(warning);
-							hostedActions.add(actionButton("Reject " + member.rsn(), () -> revoke(member)));
-						}
+						JLabel warning = muted("Confirm " + member.label() + " with your teammate");
+						warning.setToolTipText("RuneScape names are deliberately never sent to the hosted server.");
+						hostedActions.add(warning);
+						hostedActions.add(actionButton("Approve " + member.label(), () -> approve(member)));
+						hostedActions.add(actionButton("Reject " + member.label(), () -> revoke(member)));
 					}
 					else if (!member.revoked() && "member".equals(member.role()))
 					{
 						hostedActions.add(Box.createVerticalStrut(4));
-						hostedActions.add(actionButton("Revoke " + member.rsn(), () -> revoke(member)));
+						hostedActions.add(actionButton("Revoke " + member.label(), () -> revoke(member)));
 					}
 				}
 			}
@@ -211,12 +209,12 @@ class GroupmanTcgPanel extends PluginPanel
 
 	private void createHostedGroup()
 	{
-		JTextField name = new JTextField(hosted.suggestedGroupName());
-		int choice = JOptionPane.showConfirmDialog(this, name, "Hosted group name",
-			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+		int choice = JOptionPane.showConfirmDialog(this,
+			"Create the single private group on this Worker? No RuneScape name or GIM name will be uploaded.",
+			"Create private hosted group", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
-			hosted.createGroup(name.getText(), this::actionFinished);
+			hosted.createGroup(this::actionFinished);
 		}
 	}
 
@@ -231,7 +229,7 @@ class GroupmanTcgPanel extends PluginPanel
 		form.add(new JLabel("Invite code"));
 		form.add(invite);
 		int choice = JOptionPane.showConfirmDialog(this, form,
-			"Join as " + (hosted.currentRsn().isEmpty() ? "current account" : hosted.currentRsn()),
+			"Join private hosted group (RuneScape name stays local)",
 			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
@@ -247,7 +245,7 @@ class GroupmanTcgPanel extends PluginPanel
 	private void revoke(HostedSyncStatus.Member member)
 	{
 		int choice = JOptionPane.showConfirmDialog(this,
-			"Remove " + member.rsn() + " from hosted sync? Their permanent unlocks remain.",
+			"Remove " + member.label() + " from hosted sync? Their permanent unlocks remain.",
 			"Revoke hosted member", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.YES_OPTION)
 		{

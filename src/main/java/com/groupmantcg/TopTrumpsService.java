@@ -241,8 +241,6 @@ class TopTrumpsService
 		result.setChallengeId(acceptedChallenge.challengeId);
 		result.setChallengerMemberId(local.getMemberId());
 		result.setChallengedMemberId(target.getMemberId());
-		result.setChallengerName(safeName(local.getDisplayName()));
-		result.setChallengedName(safeName(target.getDisplayName()));
 		result.setChallengerCard(match.challengerCard().displayName());
 		result.setChallengedCard(match.challengedCard().displayName());
 		partyService.send(result);

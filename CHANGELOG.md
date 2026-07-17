@@ -6,25 +6,31 @@
   hosted groups; no public server is configured by default.
 - Bound each profile token to the server that issued it so changing the global
   URL cannot redirect an existing credential.
-
-- Add profile-scoped hosted group creation, invite joining, roster-gated owner
-  approval, and token-free sidebar management.
-- Upload exact personal collection snapshots and pack events to the Sqwiglyy
-  Cloudflare API, with retry-safe event IDs and grow-only shared unlocks.
+- Add profile-scoped hosted group creation, invite joining, owner approval,
+  private member labels, and token-free sidebar management.
+- Removed RuneScape names, GIM names, original-puller labels, and raw OSRS TCG
+  instance IDs from hosted requests and responses.
+- Replaced the GIM name in custom RuneLite Party messages with an opaque key and
+  removed redundant player-name fields from Top Trumps messages.
+- Made hosted sync and OSRS Wiki artwork downloads explicit opt-ins.
+- Upload privacy-reduced personal collection snapshots and pack events to the
+  group-owned Cloudflare API, with retry-safe event IDs and grow-only unlocks.
 - Download missed pack reveals, individual member collections, and remote pull
-  provenance after reconnecting.
+  provenance identified only by private labels after reconnecting.
 - Add a shared/personal collection selector with one collection per verified
   group member.
 - Cache individual member ownership offline and identify owners in shared card
   search results.
-- Show local copy, foil, original-puller, and pull-date provenance on card
-  results while preserving the permanent shared unlock union.
+- Show local original-puller details only on the current client; hosted history
+  contains copy, foil/debug, and date metadata without player names.
+- Removed the extra MockWebServer test dependency for Plugin Hub `standard`
+  build compatibility.
 - Add consent-based Top Trumps challenges from the player right-click menu.
 - Draw two distinct cards from the shared group collection and compare them
   with the OSRS TCG power formula.
 - Show both players an illustrated winner overlay with deterministic tie-breaks.
 
-## v0.1.0 — development
+## v0.1.0 - development
 
 - Created an independent Groupman TCG RuneLite plugin.
 - Added read-only OSRS TCG collection interoperability.

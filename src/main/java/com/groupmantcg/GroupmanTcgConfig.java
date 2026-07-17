@@ -119,13 +119,13 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "hostedSyncEnabled",
 		name = "Hosted offline sync",
-		description = "Use the authenticated Sqwiglyy Cloudflare service for durable unlocks, individual collections, and missed pack reveals.",
+		description = "Opt in to your group's self-hosted service. It receives Groupman credentials, private member labels, and TCG collection/pack data, never RuneScape names.",
 		section = collectionSection,
 		position = 5
 	)
 	default boolean hostedSyncEnabled()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
@@ -138,6 +138,18 @@ public interface GroupmanTcgConfig extends Config
 	default String hostedServerUrl()
 	{
 		return "";
+	}
+
+	@ConfigItem(
+		keyName = "downloadCardArt",
+		name = "Download card artwork",
+		description = "Opt in to loading artwork from the OSRS Wiki. This reveals your IP address and the requested image URLs to the Wiki, but sends no RuneScape account data.",
+		section = collectionSection,
+		position = 7
+	)
+	default boolean downloadCardArt()
+	{
+		return false;
 	}
 
 	@ConfigItem(

@@ -13,8 +13,6 @@ public class TopTrumpsResultMessage extends PartyMemberMessage
 	private String challengeId;
 	private long challengerMemberId;
 	private long challengedMemberId;
-	private String challengerName;
-	private String challengedName;
 	private String challengerCard;
 	private String challengedCard;
 }

@@ -19,7 +19,6 @@ import okhttp3.ResponseBody;
 @Singleton
 class HostedApiClient
 {
-	static final String LEGACY_SQWIGLYY_URL = "https://groupman-tcg-api.sqwiglyy.workers.dev";
 	private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
 	private final OkHttpClient http;
@@ -44,25 +43,25 @@ class HostedApiClient
 		this.fixedBaseUrl = parseBaseUrl(baseUrl);
 	}
 
-	CreateResponse createGroup(String groupName, String ownerRsn) throws IOException
+	CreateResponse createGroup() throws IOException
 	{
-		return createGroupAt(configuredBaseUrl(), groupName, ownerRsn);
+		return createGroupAt(configuredBaseUrl());
 	}
 
-	CreateResponse createGroupAt(String serverUrl, String groupName, String ownerRsn) throws IOException
+	CreateResponse createGroupAt(String serverUrl) throws IOException
 	{
-		return call("POST", url(serverUrl, "v1", "groups"), new CreateRequest(groupName, ownerRsn), null,
+		return call("POST", url(serverUrl, "v1", "groups"), Collections.emptyMap(), null,
 			CreateResponse.class);
 	}
 
-	JoinResponse joinGroup(String groupId, String rsn, String inviteCode) throws IOException
+	JoinResponse joinGroup(String groupId, String inviteCode) throws IOException
 	{
-		return joinGroupAt(configuredBaseUrl(), groupId, rsn, inviteCode);
+		return joinGroupAt(configuredBaseUrl(), groupId, inviteCode);
 	}
 
-	JoinResponse joinGroupAt(String serverUrl, String groupId, String rsn, String inviteCode) throws IOException
+	JoinResponse joinGroupAt(String serverUrl, String groupId, String inviteCode) throws IOException
 	{
-		return call("POST", url(serverUrl, "v1", "join"), new JoinRequest(groupId, rsn, inviteCode), null,
+		return call("POST", url(serverUrl, "v1", "join"), new JoinRequest(groupId, inviteCode), null,
 			JoinResponse.class);
 	}
 
@@ -300,7 +299,6 @@ class HostedApiClient
 	static final class GroupRef
 	{
 		String id;
-		String displayName;
 		long collectionVersion;
 	}
 
@@ -308,7 +306,7 @@ class HostedApiClient
 	{
 		String id;
 		String groupId;
-		String rsn;
+		String label;
 		String role;
 		String status;
 		String token;
@@ -324,7 +322,7 @@ class HostedApiClient
 	static final class MemberSummary
 	{
 		String id;
-		String rsn;
+		String label;
 		int cards;
 		int copies;
 		int foils;
@@ -335,7 +333,6 @@ class HostedApiClient
 		String sourceInstanceId;
 		String cardName;
 		boolean foil;
-		String pulledBy;
 		long pulledAt;
 		String acquisitionKind;
 	}
@@ -368,15 +365,15 @@ class HostedApiClient
 		final String sourceInstanceId;
 		final String cardName;
 		final boolean foil;
-		final String pulledBy;
+		final boolean debug;
 		final long pulledAt;
 
-		CardInstanceUpload(String sourceInstanceId, String cardName, boolean foil, String pulledBy, long pulledAt)
+		CardInstanceUpload(String sourceInstanceId, String cardName, boolean foil, boolean debug, long pulledAt)
 		{
 			this.sourceInstanceId = sourceInstanceId;
 			this.cardName = cardName;
 			this.foil = foil;
-			this.pulledBy = pulledBy;
+			this.debug = debug;
 			this.pulledAt = pulledAt;
 		}
 	}
@@ -409,28 +406,14 @@ class HostedApiClient
 		}
 	}
 
-	private static final class CreateRequest
-	{
-		final String groupName;
-		final String ownerRsn;
-
-		private CreateRequest(String groupName, String ownerRsn)
-		{
-			this.groupName = groupName;
-			this.ownerRsn = ownerRsn;
-		}
-	}
-
 	private static final class JoinRequest
 	{
 		final String groupId;
-		final String rsn;
 		final String inviteCode;
 
-		private JoinRequest(String groupId, String rsn, String inviteCode)
+		private JoinRequest(String groupId, String inviteCode)
 		{
 			this.groupId = groupId;
-			this.rsn = rsn;
 			this.inviteCode = inviteCode;
 		}
 	}

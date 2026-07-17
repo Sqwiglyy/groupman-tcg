@@ -34,6 +34,7 @@ class CardArtService
 	private static final String USER_AGENT = "Groupman-TCG RuneLite plugin (maintainer: Sqwiglyy)";
 
 	private final CardVisualCatalog catalog;
+	private final GroupmanTcgConfig config;
 	private final OkHttpClient http;
 	private final Map<String, BufferedImage> memory = Collections.synchronizedMap(
 		new LinkedHashMap<String, BufferedImage>(MEMORY_ENTRIES + 1, 0.75f, true)
@@ -48,9 +49,10 @@ class CardArtService
 	private final Set<String> failed = ConcurrentHashMap.newKeySet();
 
 	@Inject
-	CardArtService(CardVisualCatalog catalog, OkHttpClient http)
+	CardArtService(CardVisualCatalog catalog, GroupmanTcgConfig config, OkHttpClient http)
 	{
 		this.catalog = catalog;
+		this.config = config;
 		this.http = http;
 	}
 
@@ -63,7 +65,7 @@ class CardArtService
 		}
 		String url = card.imageUrl();
 		BufferedImage cached = memory.get(url);
-		if (cached == null && !failed.contains(url))
+		if (cached == null && config.downloadCardArt() && !failed.contains(url))
 		{
 			ensureLoad(url);
 		}
@@ -132,7 +134,7 @@ class CardArtService
 		}
 		catch (Exception ex)
 		{
-			log.debug("Unable to load card art {}", url, ex);
+			log.debug("Unable to load optional card art", ex);
 			return null;
 		}
 	}
@@ -150,7 +152,7 @@ class CardArtService
 		}
 		catch (Exception ex)
 		{
-			log.debug("Unable to read cached card art {}", file, ex);
+			log.debug("Unable to read cached card art", ex);
 			return null;
 		}
 	}
@@ -177,7 +179,7 @@ class CardArtService
 		}
 		catch (Exception ex)
 		{
-			log.debug("Unable to cache card art {}", target, ex);
+			log.debug("Unable to cache card art", ex);
 		}
 	}
 

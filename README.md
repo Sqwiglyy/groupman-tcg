@@ -1,134 +1,217 @@
 # Groupman TCG
 
-Groupman TCG is a group-first RuneLite challenge plugin powered by the
-[OSRS TCG](https://runelite.net/plugin-hub/show/osrs-tcg) card collection.
-Tracked NPCs and items stay locked until their matching card is collected.
+Groupman TCG is a RuneLite challenge plugin powered by the
+[OSRS TCG](https://runelite.net/plugin-hub/show/osrs-tcg) collection. Tracked
+NPCs, items, gathering nodes, recipes, and skill interactions remain locked
+until the matching card is collected. Official Group Ironman and Hardcore
+Group Ironman teams can combine their cards into one permanent shared unlock
+collection.
 
-For official Group Ironman and Hardcore Group Ironman teams, every collected
-card becomes a permanent shared unlock. Live collection snapshots synchronise
-through RuneLite Party and are accepted only from display names on the
-in-game GIM roster.
+This is an honour-mode plugin. It blocks supported RuneLite menu clicks and
+clearly marks locked content, but it does not alter the game server or claim to
+enforce every possible interaction.
+
+## What you need
+
+- The official desktop RuneLite client.
+- **OSRS TCG** installed and enabled from the Plugin Hub.
+- **Groupman TCG** installed and enabled.
+- An official GIM/HCGIM account for shared-group mode. Normal accounts can use
+  solo mode.
+- A shared RuneLite Party for live collection updates, pack popups, and Top
+  Trumps.
+- Optionally, one private self-hosted Cloudflare Worker for offline history and
+  convergence. There is no public default server.
+
+## Start a solo challenge
+
+1. Enable **OSRS TCG** and **Groupman TCG**.
+2. Set **Collection mode** to **Solo collection**.
+3. Open packs in OSRS TCG. Newly collected cards immediately unlock their
+   matching content.
+4. Review the restriction difficulty options before committing to the account.
+
+Solo mode does not use RuneLite Party or the hosted backend.
+
+## Start a new multiplayer group
+
+### Live-only setup
+
+This is the shortest setup and requires no Cloudflare account:
+
+1. Every teammate installs and enables OSRS TCG and Groupman TCG.
+2. Every teammate sets **Collection mode** to **Shared GIM collection**.
+3. Log into the official GIM/HCGIM characters so RuneLite can read the local
+   in-game roster.
+4. Join the same RuneLite Party.
+5. Leave **Hosted offline sync** disabled.
+
+Collection snapshots and pack reveals then travel through RuneLite Party.
+Players who are never online together will not exchange missed history until a
+hosted backend is added.
+
+### Private hosted setup
+
+Use this setup when the group wants offline pack history and durable per-member
+collections:
+
+1. One teammate deploys the
+   [Groupman TCG Server](https://github.com/Sqwiglyy/groupman-tcg-server) to
+   their own Cloudflare account.
+2. Open `https://YOUR-WORKER.workers.dev/health` and confirm it returns
+   `{"status":"ok"}`. Copy the root URL without `/health`.
+3. Every teammate enables **Hosted offline sync** and enters that identical
+   root URL under **Hosted server URL**.
+4. The owner logs into their GIM/HCGIM character, opens the Groupman TCG
+   sidebar, and selects **Create hosted group**.
+5. The owner sends the displayed group ID and invite code privately to each
+   teammate. Do not share bearer tokens or post join details publicly.
+6. Each teammate selects **Join hosted group** and enters the group ID and
+   invite code. The server assigns a private label such as `Member A1B2C3`;
+   their RuneScape name is never uploaded.
+7. The teammate tells the owner that private label through an existing trusted
+   channel. The owner approves only the expected label.
+8. Repeat for the remaining teammates. A private Worker supports one group of
+   up to five active memberships.
+9. Join the same RuneLite Party whenever instant reveals or Top Trumps are
+   wanted. Hosted offline sync continues without a Party.
+
+Invites last 30 days and can be rotated by the owner. A revoked member loses
+API access; permanent grow-only unlocks remain in the group collection.
+
+## Privacy and network behaviour
+
+Privacy-sensitive features are off by default: **Hosted offline sync** and
+**Download card artwork** both require an explicit opt-in.
+
+The plugin reads the active character name, official GIM name and roster, OSRS
+TCG collection state, and relevant visible interactions locally. Those values
+are needed to bind local profile data and apply the challenge, but are never
+sent to the self-hosted Worker.
+
+When RuneLite Party is used, Groupman TCG sends an opaque hash in place of the
+GIM name, compact card collection data, pack card names/foil/new flags, and
+Top Trumps challenge/card data. It does not add RuneScape names or the GIM name
+to its Party message payloads. RuneLite Party itself already exposes each
+party member's display name to the other members of that Party.
+
+When hosted sync is explicitly enabled, the selected Worker receives only:
+
+- random group and member IDs plus generic labels such as `Owner` and
+  `Member A1B2C3`;
+- Groupman TCG bearer tokens and invite codes over HTTPS for authentication;
+- opaque hashes of OSRS TCG source-instance IDs;
+- card names, foil/debug flags, pull timestamps, shared unlocks, and pack
+  contents required for multiplayer history.
+
+The Worker is never sent a RuneScape name, GIM name or roster, account ID,
+Jagex credential, bank PIN, game-session token, stats or XP, inventory, bank or
+equipment contents, world, location, clan data, or chat. The bearer token is a
+Groupman TCG credential stored in the local RuneLite profile and is always
+bound to the Worker that issued it. The Worker stores only SHA-256 hashes of
+bearer tokens and invite codes in D1.
+
+Cloudflare necessarily processes connection metadata such as IP addresses when
+a client connects. The Worker code does not deliberately log or store IP
+addresses, request bodies, credentials, or gameplay data. The self-hosting
+Cloudflare account owner remains responsible for their account settings,
+backups, retention, and privacy obligations.
+
+The complete field-by-field boundary is recorded in the
+[privacy contract](PRIVACY.md).
+
+Optional card artwork is downloaded only after **Download card artwork** is
+enabled. Requests go only to fixed OSRS Wiki image URLs; the Wiki can then see
+the connecting IP address and requested image URL. No RuneScape identity is
+included in those requests. Card frames and names still work when artwork is
+disabled or unavailable.
 
 ## Restriction coverage
 
-- Block attacks and item/spell interactions with locked tracked NPCs.
-- Block taking, telegrabbing, equipping, buying, withdrawing, and using locked
-  tracked items.
-- **Visual locks:** tracked locked NPCs receive a configurable grey model
-  outline; locked ground items receive an individual model outline; and locked
-  inventory, bank, and equipment items receive a translucent grey wash and
-  padlock marker. Each visual can be switched off independently.
-- **Gathering:** Woodcutting trees require their log cards; Mining rocks require
-  their ore/resource cards; Fishing spots can require any or every possible
-  catch card; Runecrafting altars require talisman/tiara alternatives and
-  optionally the rune card.
-- **Processing:** Cooking supports cooked and burnt-food requirements;
-  Firemaking supports logs and Tinderbox; Smelting and Smithing independently
-  configure input/output requirements; Crafting, Enchanting, Fletching, and
-  Herblore support inputs, outputs, both, or off.
-- **Farming:** separate raking, planting, produce, and compost requirements.
-- **Hunter:** birds, butterflies, implings, salamanders, pitfalls,
-  chinchompas, and optional full rumour-master assignment pools.
-- **Slayer:** master cards, complete assignment pools, and optional superior
-  variants can be enabled independently.
-- **Thieving:** loot-only or NPC-plus-loot pickpocket rules, a dedicated Master
-  Farmer difficulty, and any/all market-stall loot modes.
-- **Sailing:** tiered ship-part/material requirements and shipwreck salvage
-  cards.
-- Solo or official Group Ironman collection modes.
-- Grow-only, profile-scoped group unlock cache.
-- Compact RuneLite Party snapshots with catalog compatibility checks.
-- Authenticated Cloudflare sync through a group-owned, self-hosted Worker for
-  durable unlocks, provenance, and offline pack history. No public server is
-  configured by default.
-- Sidebar collection browser with a shared view and one cached collection per
-  verified group member. Shared search results identify the current owner;
-  hovering the owner shows locally available copy, foil, original-puller, and
-  pull-date details.
-- Verified group pack reveals: a few seconds after a teammate opens a pack,
-  show all five pulled cards in a small top-centre window, including duplicate,
-  `NEW`, and `FOIL` status. Multiple reveals queue rather than overwrite one
-  another.
-- **Top Trumps duels:** right-click an online verified group member to challenge
-  them. After they accept in the chatbox, two distinct cards are drawn from the
-  shared collection and compared using OSRS TCG's own value/level/override score
-  formula. Both players receive the same illustrated result and a deterministic
-  tie-break guarantees a winner.
-- Sidebar collection search and group synchronisation status.
+- Combat and other configured interactions with locked tracked NPCs.
+- Taking, telegrabbing, equipping, buying, withdrawing, consuming, and using
+  locked tracked items.
+- Grey outlines for locked NPCs and ground items, plus shaded inventory, bank,
+  and equipment items with optional padlock markers.
+- Woodcutting, Mining, Fishing, and Runecrafting gathering requirements.
+- Cooking, Firemaking, Smelting, Smithing, Crafting, Enchanting, Fletching, and
+  Herblore input/output modes.
+- Farming raking, planting, produce, and compost requirements.
+- Hunter birds, butterflies, implings, salamanders, pitfalls, chinchompas, and
+  optional rumour-master assignment pools.
+- Slayer masters, assignment pools, and optional superior variants.
+- Thieving pickpockets, Master Farmers, and market stalls.
+- Sailing ship upgrades and shipwreck salvage.
 
-Items and NPCs with no OSRS TCG card are never restricted. Enforcement is
-client-side and therefore remains an honour-system challenge.
+Items and NPCs without an OSRS TCG card are not restricted. Coins are exempt
+from the general item lock by default, and restrictions suspend in live Last
+Man Standing matches unless that safety option is disabled.
 
-RuneLite Party remains the low-latency live transport. The optional hosted sync
-stores approved members' unlocks and card-instance provenance so everyone
-converges after reconnecting even when no two members were online together.
-Pack reveals received through RuneLite Party appear immediately; authenticated
-server history supplies reveals missed while offline. Both paths are filtered
-against the official in-game GIM roster. Sharing and receiving pack reveals can
-be disabled independently, and the popup duration is configurable.
-Top Trumps challenges are likewise live-only, targeted to one verified group
-member, and require explicit acceptance before cards are drawn.
-Card artwork is loaded on demand from the OSRS Wiki URLs in OSRS TCG's public
-card catalog and cached under RuneLite's `Groupman-TCG/card-art-v1` directory;
-the names and card frames still display if artwork is unavailable.
+## Multiplayer features
 
-OSRS TCG records a card instance ID, card name, foil state, original puller and
-pull time. It does not retain the exact booster type or RuneScape activity that
-awarded the pack, and a traded card retains its original pull metadata. The
-companion server schema preserves those fields and labels debug-granted cards,
-but must not claim that it can distinguish a direct pull from a later trade.
+- Grow-only shared unlock collection with one personal collection view per
+  member.
+- Queued miniature pack windows showing another member's pulls, duplicate,
+  `NEW`, and `FOIL` state.
+- Offline pack replay after reconnecting when hosted sync is enabled.
+- Consent-based Top Trumps: right-click an online verified group member,
+  challenge them, and draw two different cards from the shared collection after
+  they accept.
+- Local provenance for the current character. The hosted service deliberately
+  omits original-puller names; remote history shows private member labels,
+  copies, foil/debug state, and dates only.
 
-## Hosted group setup
+## Updating, backup, and recovery
 
-1. One teammate
-   [deploys the companion Worker](https://github.com/Sqwiglyy/groupman-tcg-server)
-   to their Cloudflare account and shares only its `https://...workers.dev`
-   root URL.
-2. Every teammate sets **Hosted server URL** to that same
-   `https://...workers.dev` address before joining or creating the group.
-3. Log into the Group Ironman account and open the Groupman TCG sidebar.
-4. One teammate chooses **Create hosted group**, then copies the displayed
-   group ID and invite code.
-5. Each teammate chooses **Join hosted group** and enters those two values.
-6. The owner approves only names that the plugin confirms are on the official
-   GIM roster.
+- RuneLite updates Plugin Hub plugins automatically after an approved Plugin
+  Hub update.
+- The self-hosting teammate updates and backs up the Worker separately. Follow
+  the server repository's
+  [update and backup guide](https://github.com/Sqwiglyy/groupman-tcg-server#updates-and-backups).
+- Disconnecting removes the local hosted credential but leaves the cached
+  grow-only unlock union.
+- Changing **Hosted server URL** does not move an existing group. Disconnect,
+  select the new Worker, and create or join on that deployment.
 
-The server selected when a profile creates or joins a group is saved with that
-profile. Its bearer token is always sent back to that same server, even if the
-global URL setting is later changed. To move to another server, disconnect the
-hosted profile, choose the new URL, and create or join a group there.
+## Troubleshooting
 
-The bearer token is stored in that RuneScape profile's local RuneLite
-configuration and is never displayed in the sidebar or written to plugin logs.
-It is not a Jagex credential. Disconnecting removes the local token while
-leaving the grow-only unlock cache intact.
+- **No cards appear:** enable OSRS TCG, open its collection once, and confirm
+  the character has a RuneLite profile.
+- **Shared mode says to log in:** shared mode requires an official GIM/HCGIM
+  account and a readable in-game group roster.
+- **Live updates are missing:** all members must be in the same RuneLite Party
+  and use compatible plugin/card-catalog versions.
+- **Hosted setup fails:** enable hosted sync, use the exact same HTTPS Worker
+  root URL on every client, and confirm `/health` returns `ok`.
+- **A member remains pending:** the owner must confirm the member's private
+  label out of band and approve it in the sidebar.
+- **The Worker says it is claimed:** each deployment intentionally supports one
+  private group. Deploy a separate Worker for another group.
+- **Artwork is blank:** artwork downloads are disabled by default. Enable them
+  only if the OSRS Wiki network request is acceptable.
 
-The service receives the RuneScape display name, hosted group membership, OSRS
-TCG card instance IDs/names, foil state, original-puller label, pull timestamp,
-and pack contents. It does not receive a Jagex password, bank PIN, chat, game
-session token, or general gameplay telemetry.
+## Development and Plugin Hub readiness
 
-Production restrictions consume RuneLite menu clicks. Keyboard shortcuts that
-confirm a make-X interface without producing a menu click remain honour-system.
-The general item lock applies to acquiring, equipping, consuming, and unrelated
-item actions; recognised skill interactions follow their dedicated skill mode.
-Coins are exempt from the general item lock by default, and the exemption list
-is configurable. Restrictions automatically suspend inside live Last Man
-Standing matches unless that safety option is disabled.
-
-Visual styling represents the general NPC/item card lock and follows those
-restriction toggles and item exemptions. Context-sensitive skill rules are
-explained when an action is attempted because the same item may be valid for
-one recipe and locked for another.
-
-## Development
-
-Requires Java 11. Run the development client with:
+Requires Java 11. Run all checks with:
 
 ```powershell
 $env:JAVA_HOME='C:\path\to\jdk-11'
-.\gradlew.bat run
+.\gradlew.bat clean build
 ```
 
-Maintained by **Sqwiglyy**. Complete a live two-account GIM test before the
-first Plugin Hub submission.
+The repository uses the Plugin Hub's `standard` build, Java-only source,
+`latest.release` RuneLite dependencies, a BSD 2-Clause license, and no custom
+runtime dependencies. Before submission, complete a real two-account GIM test
+covering install, live Party sync, private Worker creation/join/approval,
+offline replay, restrictions, shutdown, and restart. Use the
+[Plugin Hub launch checklist](PLUGIN_HUB_CHECKLIST.md) for the full manual
+release gate.
+
+RuneLite reviews new submissions for security and game-rule compliance. The
+maintainer should follow the official
+[Plugin Hub submission guide](https://github.com/runelite/plugin-hub#submitting-a-plugin)
+and check the current
+[rejected/rolled-back feature list](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features)
+immediately before opening the Plugin Hub pull request.
+
+Maintained by **Sqwiglyy**.
