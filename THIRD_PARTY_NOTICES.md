@@ -31,11 +31,16 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-The OSRS TCG project is maintained by Azderi and is not bundled as executable
-code. Groupman TCG interoperates read-only with OSRS TCG's profile-scoped state.
-The bundled `osrs_tcg_cards.json` is an unmodified snapshot of OSRS TCG's
-public `Card.json` at commit `ffb5290402853d3254e803f2661a40602216ad9d`.
-It is redistributed under the following licence:
+The OSRS TCG project is maintained by Azderi. Groupman TCG interoperates
+read-only with OSRS TCG's profile-scoped state. The bundled
+`osrs_tcg_cards.json` is an unmodified snapshot of OSRS TCG's public
+`Card.json` at commit `ffb5290402853d3254e803f2661a40602216ad9d`.
+
+`OsrsTcgCardRenderer.java` is adapted from OSRS TCG's
+`SharedCardRenderer.java`, and the namespaced `Cardback.png`, `lock.png`, and
+`Pack_Standard.png` files are copied from the RuneLite Plugin Hub version of
+OSRS TCG at commit `2835bddd0bf5de6d2319e98a4bdd8d932a585795`.
+Those source and asset files are redistributed under the following licence:
 
 BSD 2-Clause License
 
@@ -61,3 +66,6 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Old School RuneScape and RuneScape are trademarks of Jagex Limited. Groupman
+TCG is a fan project and is not endorsed by Jagex, RuneLite, or OSRS TCG.

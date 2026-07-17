@@ -7,6 +7,8 @@ RuneLite review steps that cannot be proven by unit tests.
 
 - [x] Public standalone plugin repository.
 - [x] BSD 2-Clause license.
+- [x] OSRS TCG renderer/assets retain BSD attribution and are pinned to its
+  current Plugin Hub commit in `THIRD_PARTY_NOTICES.md`.
 - [x] Java 11 source and `latest.release` RuneLite dependency.
 - [x] `runelite-plugin.properties` contains display name, author, description,
   tags, main plugin class, and `build=standard`.
@@ -46,6 +48,8 @@ RuneLite review steps that cannot be proven by unit tests.
 - [ ] Verify OSRS TCG detection and card unlocks after restart.
 - [ ] Verify live RuneLite Party collection sync in both directions.
 - [ ] Verify pack reveal sender/receiver controls and popup queueing.
+- [ ] Verify OSRS TCG card frames, rarity colours, foil animation, pack art, and
+  Wiki-art-off fallback at normal RuneLite canvas sizes.
 - [ ] Verify private Worker create, join, label confirmation, approval, revoke,
   invite rotation, offline pack replay, and a second-group rejection.
 - [ ] Verify the Worker/D1 contains no real RuneScape or GIM names after the

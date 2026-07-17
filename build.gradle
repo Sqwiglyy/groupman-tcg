@@ -33,6 +33,10 @@ tasks.withType(JavaCompile).configureEach {
 	options.release.set(11)
 }
 
+processResources {
+	from('THIRD_PARTY_NOTICES.md')
+}
+
 tasks.register('run', JavaExec) {
 	classpath = sourceSets.test.runtimeClasspath
 	mainClass = 'com.groupmantcg.GroupmanTcgPluginTest'

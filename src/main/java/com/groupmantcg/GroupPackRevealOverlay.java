@@ -5,34 +5,30 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.util.ImageUtil;
 
 @Singleton
 class GroupPackRevealOverlay extends Overlay
 {
 	private static final int PADDING = 8;
 	private static final int GAP = 6;
-	private static final int HEADER_HEIGHT = 28;
-	private static final int CARD_WIDTH = 78;
-	private static final int CARD_HEIGHT = 104;
-	private static final int ART_HEIGHT = 61;
+	private static final int HEADER_HEIGHT = 46;
+	private static final int CARD_WIDTH = 96;
+	private static final int CARD_HEIGHT = 139;
 	private static final Color PANEL = new Color(17, 20, 24, 238);
 	private static final Color PANEL_BORDER = new Color(184, 115, 51);
-	private static final Color RESOURCE_BORDER = new Color(184, 115, 51);
-	private static final Color MONSTER_BORDER = new Color(164, 70, 66);
-	private static final Color FOIL_LEFT = new Color(91, 220, 255);
-	private static final Color FOIL_RIGHT = new Color(243, 164, 255);
+	private static final BufferedImage PACK_IMAGE = ImageUtil.loadImageResource(GroupPackRevealOverlay.class,
+		"/osrs-tcg/Pack_Standard.png");
 
 	private final GroupPackRevealService reveals;
 	private final CardVisualCatalog visuals;
@@ -92,13 +88,17 @@ class GroupPackRevealOverlay extends Overlay
 
 	private static void drawHeader(Graphics2D graphics, int width, String opener)
 	{
+		if (PACK_IMAGE != null)
+		{
+			drawContained(graphics, PACK_IMAGE, PADDING, 3, 17, 28);
+		}
 		Font font = FontManager.getRunescapeBoldFont();
 		graphics.setFont(font);
 		String title = "Pack opened by " + opener;
 		FontMetrics metrics = graphics.getFontMetrics();
 		title = ellipsize(title, metrics, width - PADDING * 2);
 		int x = (width - metrics.stringWidth(title)) / 2;
-		int y = 19;
+		int y = 22;
 		graphics.setColor(new Color(0, 0, 0, 190));
 		graphics.drawString(title, x + 1, y + 1);
 		graphics.setColor(Color.WHITE);
@@ -108,59 +108,26 @@ class GroupPackRevealOverlay extends Overlay
 	private void drawCard(Graphics2D graphics, int x, int y, GroupPackRevealService.Pull pull)
 	{
 		CardVisualCatalog.CardVisual visual = visuals.find(pull.cardName());
-		Color baseBorder = visual != null && visual.monster() ? MONSTER_BORDER : RESOURCE_BORDER;
-		graphics.setColor(new Color(35, 37, 41, 250));
-		graphics.fillRoundRect(x, y, CARD_WIDTH, CARD_HEIGHT, 8, 8);
+		if (visual == null)
+		{
+			graphics.setColor(new Color(35, 37, 41, 250));
+			graphics.fillRoundRect(x, y, CARD_WIDTH, CARD_HEIGHT, 8, 8);
+			drawPlaceholder(graphics, x, y, CARD_WIDTH, CARD_HEIGHT, pull.cardName());
+			return;
+		}
 
-		if (pull.foil())
-		{
-			graphics.setPaint(new GradientPaint(x, y, FOIL_LEFT, x + CARD_WIDTH, y + CARD_HEIGHT, FOIL_RIGHT));
-			graphics.setStroke(new BasicStroke(2.2f));
-		}
-		else
-		{
-			graphics.setColor(baseBorder);
-			graphics.setStroke(new BasicStroke(1.5f));
-		}
-		graphics.drawRoundRect(x, y, CARD_WIDTH - 1, CARD_HEIGHT - 1, 8, 8);
-
-		int artX = x + 5;
-		int artY = y + 5;
-		int artWidth = CARD_WIDTH - 10;
-		graphics.setColor(new Color(20, 22, 25));
-		graphics.fillRoundRect(artX, artY, artWidth, ART_HEIGHT, 5, 5);
-		BufferedImage image = art.getCached(pull.cardName());
-		if (image == null)
-		{
-			drawPlaceholder(graphics, artX, artY, artWidth, ART_HEIGHT, pull.cardName());
-		}
-		else
-		{
-			drawContained(graphics, image, artX + 2, artY + 2, artWidth - 4, ART_HEIGHT - 4);
-		}
+		OsrsTcgCardRenderer.drawCardFace(graphics, new Rectangle(x, y, CARD_WIDTH, CARD_HEIGHT), visual,
+			pull.foil(), visual.rarityColor(), art.getCached(pull.cardName()));
 
 		if (pull.newForCollection())
 		{
-			drawBadge(graphics, x + 4, y + 4, "NEW", new Color(45, 126, 72));
+			drawBadge(graphics, x + 4, y - 14, "NEW", new Color(45, 126, 72));
 		}
 		if (pull.foil())
 		{
-			drawBadgeRight(graphics, x + CARD_WIDTH - 4, y + 4, "FOIL", new Color(91, 93, 151));
+			drawBadgeRight(graphics, x + CARD_WIDTH - 4, y - 14, "FOIL", new Color(91, 93, 151));
 		}
 
-		graphics.setFont(FontManager.getRunescapeSmallFont());
-		FontMetrics metrics = graphics.getFontMetrics();
-		List<String> lines = wrap(pull.cardName(), metrics, CARD_WIDTH - 8, 2);
-		int textY = y + ART_HEIGHT + 18;
-		for (String line : lines)
-		{
-			int textX = x + (CARD_WIDTH - metrics.stringWidth(line)) / 2;
-			graphics.setColor(Color.BLACK);
-			graphics.drawString(line, textX + 1, textY + 1);
-			graphics.setColor(Color.WHITE);
-			graphics.drawString(line, textX, textY);
-			textY += 12;
-		}
 	}
 
 	private static void drawContained(Graphics2D graphics, BufferedImage image, int x, int y, int width, int height)
@@ -199,39 +166,6 @@ class GroupPackRevealOverlay extends Overlay
 		FontMetrics metrics = graphics.getFontMetrics();
 		int width = metrics.stringWidth(text) + 5;
 		drawBadge(graphics, right - width, y, text, background);
-	}
-
-	static List<String> wrap(String text, FontMetrics metrics, int width, int maxLines)
-	{
-		List<String> lines = new ArrayList<>();
-		String remaining = text == null ? "" : text.trim();
-		while (!remaining.isEmpty() && lines.size() < maxLines)
-		{
-			if (metrics.stringWidth(remaining) <= width)
-			{
-				lines.add(remaining);
-				remaining = "";
-				break;
-			}
-			int split = remaining.length();
-			while (split > 1 && metrics.stringWidth(remaining.substring(0, split)) > width)
-			{
-				split--;
-			}
-			int space = remaining.lastIndexOf(' ', split - 1);
-			if (space > 0)
-			{
-				split = space;
-			}
-			lines.add(remaining.substring(0, split).trim());
-			remaining = remaining.substring(split).trim();
-		}
-		if (!remaining.isEmpty() && !lines.isEmpty())
-		{
-			int last = lines.size() - 1;
-			lines.set(last, ellipsize(lines.get(last) + " " + remaining, metrics, width));
-		}
-		return lines;
 	}
 
 	private static String ellipsize(String text, FontMetrics metrics, int width)

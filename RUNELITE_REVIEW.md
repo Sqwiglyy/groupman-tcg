@@ -38,6 +38,9 @@ release checks in `PLUGIN_HUB_CHECKLIST.md` pass.
   setup key; the plugin sends it only in that create request and never saves it.
 - Optional Wiki artwork loading is off by default and limited to the fixed OSRS
   Wiki image origin.
+- Card faces use an attributed adaptation of OSRS TCG's BSD-licensed renderer,
+  card-back, lock badge, and standard pack art from its current Plugin Hub
+  commit. Resources are namespaced and do not access the other plugin's jar.
 
 ## Draft Plugin Hub description
 

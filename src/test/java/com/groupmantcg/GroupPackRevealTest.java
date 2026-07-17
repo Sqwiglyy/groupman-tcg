@@ -1,10 +1,15 @@
 package com.groupmantcg;
 
 import com.google.gson.Gson;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.imageio.ImageIO;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -56,6 +61,42 @@ public class GroupPackRevealTest
 		assertNotNull(goblin);
 		assertTrue(goblin.monster());
 		assertTrue(goblin.imageUrl().contains("oldschool.runescape.wiki/images/"));
+		assertFalse(goblin.examine().isEmpty());
+		assertFalse(goblin.rarityLabel().isEmpty());
+	}
+
+	@Test
+	public void bundlesAndRendersThePluginHubOsrsTcgCardDesign() throws Exception
+	{
+		try (InputStream cardBackStream = getClass().getResourceAsStream("/osrs-tcg/Cardback.png");
+			 InputStream packStream = getClass().getResourceAsStream("/osrs-tcg/Pack_Standard.png");
+			 InputStream noticesStream = getClass().getResourceAsStream("/THIRD_PARTY_NOTICES.md"))
+		{
+			assertNotNull(cardBackStream);
+			assertNotNull(packStream);
+			assertNotNull(noticesStream);
+			BufferedImage cardBack = ImageIO.read(cardBackStream);
+			BufferedImage pack = ImageIO.read(packStream);
+			assertTrue(cardBack.getWidth() > 400);
+			assertTrue(cardBack.getHeight() > 500);
+			assertTrue(pack.getWidth() > 300);
+			assertTrue(pack.getHeight() > 600);
+		}
+
+		CardVisualCatalog catalog = new CardVisualCatalog(new Gson());
+		CardVisualCatalog.CardVisual goblin = catalog.find("Goblin");
+		BufferedImage rendered = new BufferedImage(180, 260, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = rendered.createGraphics();
+		try
+		{
+			OsrsTcgCardRenderer.drawCardFace(graphics, new Rectangle(0, 0, 180, 260), goblin,
+				false, goblin.rarityColor(), null);
+		}
+		finally
+		{
+			graphics.dispose();
+		}
+		assertTrue((rendered.getRGB(90, 130) >>> 24) > 0);
 	}
 
 	@Test

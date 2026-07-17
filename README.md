@@ -139,16 +139,23 @@ disabled or unavailable.
 
 ## Visual assets and attribution
 
-Pack reveals and Top Trumps use RuneLite's bundled RuneScape-style fonts. The
-mini-card frames, borders, foil treatment, badges, lock markers, and layouts are
-drawn by Groupman TCG itself; the plugin does not copy OSRS TCG's card-back,
-pack artwork, or full card-frame renderer. The bundled card catalog is an
-unmodified, BSD-licensed snapshot of OSRS TCG's public `Card.json`, with full
-attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Pack reveals and Top Trumps use RuneLite's bundled RuneScape-style fonts and an
+adaptation of OSRS TCG's real card renderer from the exact version currently
+listed on the Plugin Hub. The rarity-coloured frame, themed sections, examine
+text, score, animated foil treatment, card-back, lock badge, and standard pack
+art are redistributed under OSRS TCG's BSD 2-Clause licence. The upstream PNGs
+are namespaced inside Groupman TCG so they cannot collide with the separately
+installed OSRS TCG plugin.
 
-When artwork downloads are explicitly enabled, the picture inside a mini-card
-is the OSRS item/NPC image referenced by that catalog and fetched from the OSRS
-Wiki. No PNG, JPG, or font files are bundled in this repository.
+Our surrounding multiplayer panel, opener/player labels, `NEW`/`FOIL` badges,
+winner outline, countdown, and popup sizing remain Groupman TCG additions. The
+bundled card catalog is an unmodified snapshot of OSRS TCG's public `Card.json`.
+The exact upstream commit and full attribution are recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+When artwork downloads are explicitly enabled, the picture inside a card is
+the OSRS item/NPC image referenced by that catalog and fetched from the OSRS
+Wiki. No custom font file is bundled; fonts continue to come from RuneLite.
 
 ## Restriction coverage
 

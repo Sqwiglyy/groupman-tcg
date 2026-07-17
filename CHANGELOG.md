@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.0-rc.3 - 2026-07-17
+
+- Adapt OSRS TCG's real card-face renderer for group pack reveals and Top
+  Trumps, including its rarity styling, examine text, score, and foil effects.
+- Bundle namespaced copies of OSRS TCG's card-back, lock badge, and standard
+  pack artwork from its current RuneLite Plugin Hub commit.
+- Preserve Groupman-specific multiplayer labels, badges, countdown, and winner
+  treatment around the upstream card design.
+- Expand BSD attribution and add a manual visual release gate.
+
 ## v0.1.0-rc.2 - 2026-07-17
 
 - Protect first hosted-group creation with a private Worker setup key sent only
