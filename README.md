@@ -82,8 +82,8 @@ Group TCG can lock:
 - Farming, Hunter, Slayer, Thieving, and Sailing activities.
 
 Items and NPCs without an OSRS TCG card are left alone. Coins are allowed by
-default. Restrictions also pause during live Last Man Standing matches unless
-you turn that safety option off.
+default by can be removed from the exceptions. Restrictions also pause during
+live Last Man Standing matches unless you turn that safety option off.
 
 This is an honour-mode plugin. It can block supported RuneLite menu actions and
 mark locked targets, but it cannot change the game server or catch every unusual
