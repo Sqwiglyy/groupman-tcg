@@ -3,6 +3,7 @@ package com.groupmantcg;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.time.Instant;
@@ -17,8 +18,9 @@ import java.util.TreeMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -101,6 +103,8 @@ class GroupmanTcgPanel extends PluginPanel
 			}
 		});
 
+		add(multiplayerPrivacyWarning());
+		add(Box.createVerticalStrut(8));
 		add(search);
 		add(Box.createVerticalStrut(6));
 		add(header("Browse collection"));
@@ -363,19 +367,67 @@ class GroupmanTcgPanel extends PluginPanel
 	{
 		JTextField groupId = new JTextField();
 		JTextField invite = new JTextField();
+		JCheckBox trustedHost = new JCheckBox("I trust the friend running this server");
+		trustedHost.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		trustedHost.setForeground(Color.WHITE);
 		JPanel form = body();
+		form.add(multiplayerPrivacyWarning());
+		form.add(Box.createVerticalStrut(8));
 		form.add(new JLabel("Group ID"));
 		form.add(groupId);
 		form.add(Box.createVerticalStrut(6));
 		form.add(new JLabel("Invite code"));
 		form.add(invite);
+		form.add(Box.createVerticalStrut(8));
+		form.add(trustedHost);
 		int choice = JOptionPane.showConfirmDialog(this, form,
 			"Join private Group TCG server",
-			JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice == JOptionPane.OK_OPTION)
 		{
+			if (!trustedHost.isSelected())
+			{
+				JOptionPane.showMessageDialog(this,
+					"Only join a private server run by a friend you trust.",
+					MultiplayerPrivacyNotice.TITLE, JOptionPane.WARNING_MESSAGE);
+				return;
+			}
 			hosted.joinGroup(groupId.getText(), invite.getText(), this::actionFinished);
 		}
+	}
+
+	private static JPanel multiplayerPrivacyWarning()
+	{
+		JPanel warning = body();
+		warning.setBackground(new Color(66, 24, 24));
+		warning.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(ColorScheme.PROGRESS_ERROR_COLOR, 2),
+			BorderFactory.createEmptyBorder(7, 7, 7, 7)));
+
+		JLabel title = new JLabel(MultiplayerPrivacyNotice.TITLE);
+		title.setForeground(new Color(255, 120, 120));
+		title.setFont(title.getFont().deriveFont(Font.BOLD));
+		title.setAlignmentX(LEFT_ALIGNMENT);
+		warning.add(title);
+		warning.add(Box.createVerticalStrut(4));
+		warning.add(warningText(MultiplayerPrivacyNotice.DESIGN,
+			new Color(255, 210, 120)));
+		warning.add(warningText(MultiplayerPrivacyNotice.TRUST, Color.WHITE));
+		warning.add(warningText(MultiplayerPrivacyNotice.EXPOSURE, Color.WHITE));
+		warning.add(warningText(MultiplayerPrivacyNotice.RESPONSIBILITY, Color.WHITE));
+		warning.add(warningText(MultiplayerPrivacyNotice.PROTECTION,
+			new Color(255, 210, 120)));
+		warning.setMaximumSize(new Dimension(Integer.MAX_VALUE, warning.getPreferredSize().height));
+		return warning;
+	}
+
+	private static JLabel warningText(String text, Color color)
+	{
+		JLabel label = new JLabel("<html><div style='width: 190px'>" + text + "</div></html>");
+		label.setForeground(color);
+		label.setAlignmentX(LEFT_ALIGNMENT);
+		label.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 0));
+		return label;
 	}
 
 	private void approve(HostedSyncStatus.Member member)

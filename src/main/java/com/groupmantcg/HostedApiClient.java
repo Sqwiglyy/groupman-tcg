@@ -231,7 +231,7 @@ class HostedApiClient
 		Request.Builder request = new Request.Builder()
 			.url(url)
 			.header("Accept", "application/json")
-			.header("User-Agent", "Group-TCG/0.1.0");
+			.header("User-Agent", "Group-TCG/0.1.1");
 		if (setupKey != null && !setupKey.isEmpty())
 		{
 			request.header("X-Groupman-Setup-Key", setupKey);

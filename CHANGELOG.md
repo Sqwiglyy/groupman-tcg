@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 - 2026-07-18
 
+- Add prominent multiplayer IP/privacy warnings during installation, in
+  settings, at the top of the sidebar, and when joining a private server.
+- Require players to confirm that they trust the friend running a server before
+  joining, and advise using a VPN when their IP address must be hidden.
+- Explain that Group TCG deliberately has no official public server, so players
+  choose which trusted friend controls their multiplayer endpoint and data.
+- State that third-party private servers are independently operated and are not
+  run, verified, endorsed, or accepted as the Group TCG creator's responsibility.
 - Fix locked-item enforcement for ground-item pickup, telegrab, and Grand
   Exchange search-result selection.
 - Show the locked-item shade and padlock on Grand Exchange search-result images.

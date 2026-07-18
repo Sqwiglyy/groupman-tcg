@@ -8,6 +8,18 @@ Group TCG turns cards from
 [OSRS TCG](https://runelite.net/plugin-hub/show/osrs-tcg) into Bronzeman-style
 rules. Pull a card to unlock the NPC, item, resource, or activity it represents.
 
+> [!WARNING]
+> **Only connect to private multiplayer servers run by friends you trust.**
+> Group TCG deliberately has no official public server. This avoids silently
+> sending every multiplayer group's connection data to one central Group TCG
+> service and lets each group choose who controls its endpoint and synced data.
+> The server host controls the endpoint and may see or record your IP address
+> and synced Group TCG data. Use a VPN if you need to hide your IP address.
+> Private servers are independently operated; the Group TCG creator does not
+> operate, verify, endorse, or accept responsibility for servers hosted by
+> other people.
+> Solo play does not contact a group server.
+
 OSRS TCG still handles every pack and card. Group TCG only reads that collection
 and applies your chosen restrictions. It does not add cards to OSRS TCG or change
 its saved data.
@@ -56,7 +68,15 @@ image URLs.
 ## Playing with friends
 
 Multiplayer uses a small private Cloudflare Worker owned by someone in your
-group. Group TCG does not provide a public server.
+group. Group TCG deliberately does not provide an official public server.
+
+This is a multiplayer safety boundary: server sync is off by default, players
+choose the friend who controls their endpoint and data, and joining requires an
+explicit trust acknowledgement. It is not IP anonymity—the private host may
+still see or record connecting IP addresses. Use a VPN if that address must be
+hidden. Private servers are independently operated; the Group TCG creator does
+not operate, verify, endorse, or accept responsibility for servers hosted by
+other people.
 
 1. The host follows the
    [Group TCG Server setup guide](https://github.com/Sqwiglyy/groupman-tcg-server).

@@ -1,5 +1,16 @@
 # Privacy
 
+> [!WARNING]
+> **Only connect to private multiplayer servers run by friends you trust.**
+> Group TCG deliberately has no official public server, so each group chooses
+> which trusted friend controls its endpoint and synced data.
+> The server host controls the endpoint and may see or record your IP address
+> and synced Group TCG data. Use a VPN if you need to hide your IP address.
+> Private servers are independently operated; the Group TCG creator does not
+> operate, verify, endorse, or accept responsibility for servers hosted by
+> other people.
+> Solo play does not contact a group server.
+
 Group TCG can be played entirely offline. Connecting to a group server and
 downloading card artwork are separate options, and both are off by default.
 
@@ -20,6 +31,15 @@ downloading card artwork are separate options, and both are off by default.
 | Group ID, invite, and member token | As needed | Sent over HTTPS; only hashes are stored | No |
 
 ## Group servers
+
+Group TCG deliberately has no official public multiplayer server. This avoids
+silently sending every group's connection data to one central Group TCG service
+and makes the infrastructure owner a person the group deliberately chooses.
+Private hosting does not provide IP anonymity: that chosen host may still see
+or record connecting IP addresses, so use a VPN when the address must be hidden.
+Private servers are independently operated; the Group TCG creator does not
+operate, verify, endorse, or accept responsibility for servers hosted by other
+people.
 
 Your display name lets the host recognise and approve you. It also lets the
 plugin match an in-game player with the correct server member for Top Trumps.

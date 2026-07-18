@@ -118,8 +118,8 @@ public interface GroupmanTcgConfig extends Config
 
 	@ConfigItem(
 		keyName = "hostedSyncEnabled",
-		name = "Connect to server",
-		description = "Connect this RuneLite profile to your group server. The server receives your display name, Group TCG token, collection choice, cards, and pack events.",
+		name = "Connect to PRIVATE server",
+		description = MultiplayerPrivacyNotice.CONFIG_DESCRIPTION,
 		section = collectionSection,
 		position = 5
 	)
@@ -131,7 +131,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "hostedServerUrl",
 		name = "Server URL",
-		description = "The Cloudflare Worker URL from your group host. Everyone must use the same URL.",
+		description = "Only enter a URL supplied by a friend you trust. The server host may see or record your IP address. Everyone in the group must use the same URL.",
 		section = collectionSection,
 		position = 6
 	)
