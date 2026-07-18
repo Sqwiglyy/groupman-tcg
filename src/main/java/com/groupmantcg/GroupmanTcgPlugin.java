@@ -19,6 +19,8 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -277,18 +279,13 @@ public class GroupmanTcgPlugin extends Plugin
 		{
 			return;
 		}
-		int itemId = entry.getItemId();
-		if (itemId <= 0)
-		{
-			return;
-		}
-		LockedStateService.Requirement lock = lockedState.itemLock(itemId);
+		String option = clean(entry.getOption());
+		LockedStateService.Requirement lock = clickedItemLock(event, entry, option);
 		if (lock == null)
 		{
 			return;
 		}
 
-		String option = clean(entry.getOption());
 		if ("examine".equals(option) || "drop".equals(option) || "destroy".equals(option)
 			|| (config.allowBankDeposits() && option.startsWith("deposit")))
 		{
@@ -296,6 +293,70 @@ public class GroupmanTcgPlugin extends Plugin
 		}
 		event.consume();
 		feedback.locked(lock.target(), new java.util.ArrayList<>(lock.cards()));
+	}
+
+	private LockedStateService.Requirement clickedItemLock(MenuOptionClicked event, MenuEntry entry,
+		String option)
+	{
+		MenuAction action = event.getMenuAction();
+		if (isGroundItemAcquisition(action, option))
+		{
+			// Ground-item menu entries expose the item through their identifier, not itemId.
+			return lockedState.itemLock(event.getId());
+		}
+
+		int interfaceGroup = WidgetUtil.componentToInterface(entry.getParam1());
+		if (isShopPurchase(action, interfaceGroup, option))
+		{
+			// Most shop entries expose itemId; name fallback covers alternate shop widgets.
+			int itemId = entry.getItemId();
+			return itemId > 0
+				? lockedState.itemLock(itemId)
+				: lockedState.itemLock(Text.removeTags(entry.getTarget()).trim());
+		}
+		if (isGrandExchangeSearchOperation(action, interfaceGroup, isGrandExchangeOpen()))
+		{
+			// GE search results are chatbox widgets and expose only the result's target text.
+			return lockedState.itemLock(Text.removeTags(entry.getTarget()).trim());
+		}
+
+		return lockedState.itemLock(entry.getItemId());
+	}
+
+	static boolean isGroundItemAcquisition(MenuAction action, String option)
+	{
+		if (action == MenuAction.WIDGET_TARGET_ON_GROUND_ITEM)
+		{
+			return true;
+		}
+		if (!"take".equals(option))
+		{
+			return false;
+		}
+		return action == MenuAction.GROUND_ITEM_FIRST_OPTION
+			|| action == MenuAction.GROUND_ITEM_SECOND_OPTION
+			|| action == MenuAction.GROUND_ITEM_THIRD_OPTION
+			|| action == MenuAction.GROUND_ITEM_FOURTH_OPTION
+			|| action == MenuAction.GROUND_ITEM_FIFTH_OPTION;
+	}
+
+	static boolean isShopPurchase(MenuAction action, int interfaceGroup, String option)
+	{
+		return LockedWidgetItemOverlay.isShopInterface(interfaceGroup)
+			&& option.startsWith("buy")
+			&& (action == MenuAction.CC_OP || action == MenuAction.CC_OP_LOW_PRIORITY);
+	}
+
+	static boolean isGrandExchangeSearchOperation(MenuAction action, int interfaceGroup,
+		boolean grandExchangeOpen)
+	{
+		return grandExchangeOpen && interfaceGroup == InterfaceID.CHATBOX
+			&& (action == MenuAction.CC_OP || action == MenuAction.CC_OP_LOW_PRIORITY);
+	}
+
+	private boolean isGrandExchangeOpen()
+	{
+		return client.getWidget(InterfaceID.GE_OFFERS, 0) != null;
 	}
 
 	private static String clean(String text)

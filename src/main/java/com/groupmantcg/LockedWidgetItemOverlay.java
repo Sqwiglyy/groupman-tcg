@@ -7,29 +7,52 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.Client;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetItem;
+import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
 @Singleton
 class LockedWidgetItemOverlay extends WidgetItemOverlay
 {
+	private final Client client;
 	private final GroupmanTcgConfig config;
 	private final LockedStateService lockedState;
 
 	@Inject
-	LockedWidgetItemOverlay(GroupmanTcgConfig config, LockedStateService lockedState)
+	LockedWidgetItemOverlay(Client client, GroupmanTcgConfig config, LockedStateService lockedState)
 	{
+		this.client = client;
 		this.config = config;
 		this.lockedState = lockedState;
 		showOnInventory();
 		showOnBank();
 		showOnEquipment();
+		showOnInterfaces(InterfaceID.SHOPMAIN, InterfaceID.OMNISHOP_MAIN, InterfaceID.CHATBOX,
+			InterfaceID.SKILL_GUIDE, InterfaceID.SKILL_GUIDE_V2);
+	}
+
+	static boolean isShopInterface(int interfaceGroup)
+	{
+		return interfaceGroup == InterfaceID.SHOPMAIN
+			|| interfaceGroup == InterfaceID.OMNISHOP_MAIN;
+	}
+
+	static boolean isSkillGuideInterface(int interfaceGroup)
+	{
+		return interfaceGroup == InterfaceID.SKILL_GUIDE
+			|| interfaceGroup == InterfaceID.SKILL_GUIDE_V2;
 	}
 
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		if (lockedState.restrictionsBypassed() || !config.restrictItems()
+		Widget widget = widgetItem.getWidget();
+		int interfaceGroup = widget == null ? -1 : WidgetUtil.componentToInterface(widget.getId());
+		if (!isItemVisualContext(interfaceGroup, isGrandExchangeOpen())
+			|| lockedState.restrictionsBypassed() || !config.restrictItems()
 			|| (!config.shadeLockedItems() && !config.showItemLockMarker())
 			|| !lockedState.isItemLocked(itemId))
 		{
@@ -60,6 +83,16 @@ class LockedWidgetItemOverlay extends WidgetItemOverlay
 		{
 			copy.dispose();
 		}
+	}
+
+	static boolean isItemVisualContext(int interfaceGroup, boolean grandExchangeOpen)
+	{
+		return interfaceGroup != InterfaceID.CHATBOX || grandExchangeOpen;
+	}
+
+	private boolean isGrandExchangeOpen()
+	{
+		return client.getWidget(InterfaceID.GE_OFFERS, 0) != null;
 	}
 
 	private static void drawPadlock(Graphics2D graphics, Rectangle bounds)

@@ -276,7 +276,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "shadeLockedItems",
 		name = "Shade locked items",
-		description = "Place a translucent grey wash over locked inventory, bank, and equipment items.",
+		description = "Place a translucent grey wash over locked inventory, bank, equipment, shop, GE search, and skill-guide items.",
 		section = visualSection,
 		position = 1
 	)
@@ -288,7 +288,7 @@ public interface GroupmanTcgConfig extends Config
 	@ConfigItem(
 		keyName = "showItemLockMarker",
 		name = "Show item padlocks",
-		description = "Draw a small padlock on locked inventory, bank, and equipment items.",
+		description = "Draw a small padlock on locked inventory, bank, equipment, shop, GE search, and skill-guide items.",
 		section = visualSection,
 		position = 2
 	)

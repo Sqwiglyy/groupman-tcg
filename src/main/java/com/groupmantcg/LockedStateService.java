@@ -56,11 +56,16 @@ class LockedStateService
 			return null;
 		}
 		ItemComposition item = itemManager.getItemComposition(itemManager.canonicalize(itemId));
-		if (item == null || item.getName() == null || isExempt(item.getName()))
+		return item == null ? null : itemLock(item.getName());
+	}
+
+	Requirement itemLock(String itemName)
+	{
+		if (itemName == null || itemName.trim().isEmpty() || isExempt(itemName))
 		{
 			return null;
 		}
-		return unresolved(item.getName(), items.cardsFor(item.getName()));
+		return unresolved(itemName, items.cardsFor(itemName));
 	}
 
 	boolean isNpcLocked(NPC npc)

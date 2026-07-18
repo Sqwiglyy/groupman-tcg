@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fix locked-item enforcement for ground-item pickup, telegrab, and Grand
+  Exchange search-result selection.
+- Show the locked-item shade and padlock on Grand Exchange search-result images.
+- Show locked-item visuals on item icons in both versions of the skill guide.
+- Shade locked shop stock, show its padlock marker, and prevent purchases in
+  both standard and omni-shop interfaces.
+
 ## 0.1.0 - 2026-07-17
 
 - Read cards from the active OSRS TCG RuneLite profile without changing its
