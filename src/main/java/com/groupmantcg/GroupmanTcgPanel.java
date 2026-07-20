@@ -19,6 +19,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -32,10 +33,14 @@ import javax.swing.event.DocumentListener;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 class GroupmanTcgPanel extends PluginPanel
 {
 	private static final int MAX_RESULTS = 20;
+	static final String SERVER_SETUP_GUIDE_URL = "https://github.com/Sqwiglyy/groupman-tcg-server";
+	static final String DISCORD_INVITE_URL = "https://discord.gg/yHzttZnQkt";
 	private static final DateTimeFormatter RECENT_DATE = DateTimeFormatter.ofPattern("d MMM HH:mm")
 		.withZone(ZoneId.systemDefault());
 	private static final DateTimeFormatter RECENT_TOOLTIP_DATE = DateTimeFormatter.ofPattern("d MMM uuuu HH:mm")
@@ -120,6 +125,9 @@ class GroupmanTcgPanel extends PluginPanel
 		add(leaderboard);
 		add(header("Card lookup"));
 		add(results);
+		add(Box.createVerticalStrut(12));
+		add(muted("Questions? Join the Discord and ask."));
+		add(discordButton());
 		refresh();
 	}
 
@@ -275,6 +283,9 @@ class GroupmanTcgPanel extends PluginPanel
 		hostedActions.removeAll();
 		if (current.state() == HostedSyncStatus.State.NOT_LINKED)
 		{
+			hostedActions.add(muted("New group? Set up its private server first."));
+			hostedActions.add(actionButton("Set up multiplayer server", this::openServerSetupGuide));
+			hostedActions.add(Box.createVerticalStrut(8));
 			hostedActions.add(actionButton("Create group", this::createHostedGroup));
 			hostedActions.add(Box.createVerticalStrut(4));
 			hostedActions.add(actionButton("Join group", this::joinHostedGroup));
@@ -340,6 +351,11 @@ class GroupmanTcgPanel extends PluginPanel
 		}
 		hostedActions.revalidate();
 		hostedActions.repaint();
+	}
+
+	private void openServerSetupGuide()
+	{
+		LinkBrowser.browse(SERVER_SETUP_GUIDE_URL);
 	}
 
 	private void createHostedGroup()
@@ -488,6 +504,16 @@ class GroupmanTcgPanel extends PluginPanel
 		button.setAlignmentX(LEFT_ALIGNMENT);
 		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
 		button.addActionListener(event -> action.run());
+		return button;
+	}
+
+	private static JButton discordButton()
+	{
+		JButton button = actionButton("Join the OSRS TCG Discord",
+			() -> LinkBrowser.browse(DISCORD_INVITE_URL));
+		button.setIcon(new ImageIcon(ImageUtil.resizeImage(
+			ImageUtil.loadImageResource(GroupmanTcgPanel.class, "/discord-mark.png"), 22, 16)));
+		button.setToolTipText("Open the OSRS TCG Discord invite");
 		return button;
 	}
 

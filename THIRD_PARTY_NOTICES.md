@@ -70,3 +70,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Old School RuneScape and RuneScape are trademarks of Jagex Limited. Group TCG
 is a fan project and is not endorsed by Jagex, RuneLite, or OSRS TCG.
+
+The Discord mark bundled in `discord-mark.png` comes from Discord's official
+brand assets and is used only to direct players to the OSRS TCG Discord server.
+Discord and the Discord logo are trademarks of Discord Inc. Group TCG is not
+affiliated with or endorsed by Discord Inc.

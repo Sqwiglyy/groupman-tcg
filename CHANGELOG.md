@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add a clear **Set up multiplayer server** button to the Group TCG sidebar.
+  The button opens the beginner-friendly private Cloudflare server guide.
+- Add a Discord-branded button at the bottom of the sidebar that opens the
+  OSRS TCG community invite.
+
 ## 0.1.1 - 2026-07-18
 
 - Add prominent multiplayer IP/privacy warnings during installation, in

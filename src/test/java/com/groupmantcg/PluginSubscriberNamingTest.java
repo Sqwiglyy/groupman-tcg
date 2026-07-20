@@ -32,4 +32,12 @@ public class PluginSubscriberNamingTest
 		assertEquals("Solo collection", CollectionMode.SOLO.toString());
 		assertEquals("Shared server collection", CollectionMode.GROUP_IRONMAN.toString());
 	}
+
+	@Test
+	public void linksToTheSelfHostingGuide()
+	{
+		assertEquals("https://github.com/Sqwiglyy/groupman-tcg-server",
+			GroupmanTcgPanel.SERVER_SETUP_GUIDE_URL);
+		assertEquals("https://discord.gg/yHzttZnQkt", GroupmanTcgPanel.DISCORD_INVITE_URL);
+	}
 }
