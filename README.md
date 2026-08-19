@@ -37,16 +37,6 @@ join; a Group Ironman team, clan, and RuneLite Party are not required.
 
 No server or Cloudflare account is needed for solo play.
 
-If Group TCG is not yet available in the Plugin Hub, run it from your own fork:
-
-```powershell
-git clone https://github.com/YOUR-GITHUB-NAME/groupman-tcg.git
-cd groupman-tcg
-.\gradlew.bat run
-```
-
-Use Eclipse Temurin Java 11. On macOS or Linux, run `./gradlew run` instead.
-
 ## Collections
 
 The sidebar lets you:
